@@ -139,11 +139,32 @@ std::vector<std::string> Client::getCompleteMessages() {
     size_t pos = 0;
     size_t found;
 
-    // \r\nで区切られた完全なメッセージを検索
-    while ((found = _buffer.find("\r\n", pos)) != std::string::npos) {
-        std::string message = _buffer.substr(pos, found - pos);
-        messages.push_back(message);
-        pos = found + 2; // \r\nの長さ分進める
+    // \r\n または \n のいずれかで区切られた完全なメッセージを検索
+    while (true) {
+        // まず\r\nを探す
+        found = _buffer.find("\r\n", pos);
+        if (found != std::string::npos) {
+            std::string message = _buffer.substr(pos, found - pos);
+            messages.push_back(message);
+            pos = found + 2; // \r\nの長さ分進める
+            continue;
+        }
+
+        // \r\nがなければ\nを探す
+        found = _buffer.find("\n", pos);
+        if (found != std::string::npos) {
+            std::string message = _buffer.substr(pos, found - pos);
+            // \rを除去（\r\nの代わりに\nだけが使われる場合の対策）
+            if (!message.empty() && message[message.length() - 1] == '\r') {
+                message = message.substr(0, message.length() - 1);
+            }
+            messages.push_back(message);
+            pos = found + 1; // \nの長さ分進める
+            continue;
+        }
+
+        // どちらも見つからなければループを抜ける
+        break;
     }
 
     // 処理済みの部分をバッファから削除
