@@ -5,6 +5,7 @@
 # include "Client.hpp"
 # include "Channel.hpp"
 # include "Parser.hpp"
+# include <cstdio>
 
 class Command;
 class CommandFactory;
