@@ -122,7 +122,32 @@ bool Client::isInChannel(const std::string& channel) const {
 
 // バッファ操作
 void Client::appendToBuffer(const std::string& data) {
-    _buffer += data;
+    // エスケープシーケンスを検出してフィルタリング
+    std::string filtered;
+    for (size_t i = 0; i < data.length(); i++) {
+        // エスケープシーケンス（矢印キーなど）の開始
+        if (data[i] == '\033') {
+            // 矢印キーなどのエスケープシーケンスをスキップ
+            // 典型的なエスケープシーケンスは \033[A (上矢印) のような形式
+            while (i < data.length() &&
+                  !(data[i] >= 'A' && data[i] <= 'Z') &&
+                  !(data[i] >= 'a' && data[i] <= 'z')) {
+                i++;
+            }
+            // 終端文字もスキップ
+            if (i < data.length()) {
+                i++;
+            }
+            continue;
+        }
+
+        // 通常の文字なら追加
+        if (data[i] != '\0') { // NULL文字をフィルタリング
+            filtered += data[i];
+        }
+    }
+
+    _buffer += filtered;
     updateLastActivity();
 }
 
