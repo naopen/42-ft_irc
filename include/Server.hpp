@@ -10,6 +10,8 @@
 class Command;
 class CommandFactory;
 
+class NickCommand;
+
 class Server {
 private:
     int                                 _serverSocket;       // サーバーのリスニングソケット
@@ -25,6 +27,7 @@ private:
     time_t                              _startTime;          // サーバー起動時間
 
 public:
+    friend class NickCommand;
     Server(int port, const std::string& password);
     ~Server();
 

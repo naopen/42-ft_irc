@@ -208,7 +208,15 @@ void Client::sendMessage(const std::string& message) {
             fullMessage += "\r\n";
         }
 
-        send(_fd, fullMessage.c_str(), fullMessage.length(), 0);
+        std::cout << "Sending message to fd " << _fd << ": " << fullMessage;
+        ssize_t sent = send(_fd, fullMessage.c_str(), fullMessage.length(), 0);
+        if (sent < 0) {
+            std::cerr << "Error sending message to client: " << strerror(errno) << std::endl;
+        } else if (static_cast<size_t>(sent) != fullMessage.length()) {
+            std::cerr << "Warning: Not all data was sent to client" << std::endl;
+        }
+    } else {
+        std::cerr << "Attempting to send message to invalid fd: " << _fd << std::endl;
     }
 }
 

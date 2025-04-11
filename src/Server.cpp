@@ -132,6 +132,9 @@ void Server::removeClient(int fd) {
         std::cout << "Client disconnected: " << fd;
         if (!client->getNickname().empty()) {
             std::cout << " (" << client->getNickname() << ")";
+
+            // ニックネームマップから削除
+            _nicknames.erase(client->getNickname());
         }
         std::cout << std::endl;
 
@@ -147,11 +150,6 @@ void Server::removeClient(int fd) {
                     removeChannel(*it);
                 }
             }
-        }
-
-        // ニックネームマップから削除
-        if (!client->getNickname().empty()) {
-            _nicknames.erase(client->getNickname());
         }
 
         // クライアントを削除
@@ -172,24 +170,31 @@ bool Server::isNicknameInUse(const std::string& nickname) {
 }
 
 void Server::updateNickname(const std::string& oldNick, const std::string& newNick) {
+    std::cout << "Updating nickname map: '" << oldNick << "' -> '" << newNick << "'" << std::endl;
+
     if (!oldNick.empty()) {
         std::map<std::string, Client*>::iterator it = _nicknames.find(oldNick);
         if (it != _nicknames.end()) {
             Client* client = it->second;
             _nicknames.erase(it);
             _nicknames[newNick] = client;
+            std::cout << "Nickname map updated successfully" << std::endl;
         }
     } else {
-        Client* client = getClientByNickname(newNick);
-        if (!client) {
-            std::map<int, Client*>::iterator it;
-            for (it = _clients.begin(); it != _clients.end(); ++it) {
-                if (it->second->getNickname() == newNick) {
-                    _nicknames[newNick] = it->second;
-                    break;
-                }
+        // 新しいニックネームをクライアントから取得して登録
+        for (std::map<int, Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+            if (it->second->getNickname() == newNick) {
+                _nicknames[newNick] = it->second;
+                std::cout << "New nickname added to map: " << newNick << std::endl;
+                break;
             }
         }
+    }
+
+    // デバッグ: 現在のニックネームマップを表示
+    std::cout << "Current nickname map:" << std::endl;
+    for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
+        std::cout << "  " << it->first << " -> Client on fd " << it->second->getFd() << std::endl;
     }
 }
 
@@ -240,11 +245,15 @@ void Server::processClientMessage(int fd) {
     // データを読み込む
     bytesRead = recv(fd, buffer, BUFFER_SIZE, 0);
 
-    if (bytesRead <= 0) {
-        // エラーまたは切断
-        if (bytesRead < 0) {
+    if (bytesRead < 0) {
+        // エラー
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
             perror("recv");
+            removeClient(fd);
         }
+        return;
+    } else if (bytesRead == 0) {
+        // クライアントが正常に切断（または複数回Ctrl+D）
         removeClient(fd);
         return;
     }

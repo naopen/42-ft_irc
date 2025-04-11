@@ -73,6 +73,9 @@ void NickCommand::execute() {
 
     std::string nickname = _params[0];
 
+    // デバッグ出力
+    std::cout << "NICK command: Client wants to change nickname to " << nickname << std::endl;
+
     // ニックネームの長さをチェック
     if (nickname.length() > 9) {
         _client->sendNumericReply(ERR_ERRONEUSNICKNAME, nickname + " :Erroneous nickname");
@@ -91,19 +94,25 @@ void NickCommand::execute() {
     // ニックネームが既に使用されている場合はエラー
     if (_server->isNicknameInUse(nickname) && nickname != _client->getNickname()) {
         _client->sendNumericReply(ERR_NICKNAMEINUSE, nickname + " :Nickname is already in use");
+        std::cout << "Nickname " << nickname << " is already in use" << std::endl;
         return;
     }
 
     // 古いニックネームを保存
     std::string oldNick = _client->getNickname();
 
-    // ニックネームを更新
-    _client->setNickname(nickname);
+    std::cout << "Updating nickname from '" << oldNick << "' to '" << nickname << "'" << std::endl;
 
     // サーバーのニックネームマップを更新
     if (!oldNick.empty()) {
         _server->updateNickname(oldNick, nickname);
+    } else {
+        // 新しいニックネームをマップに追加
+        _server->_nicknames[nickname] = _client;
     }
+
+    // ニックネームを更新
+    _client->setNickname(nickname);
 
     // 古いニックネームがある場合は変更通知を送信
     if (!oldNick.empty()) {

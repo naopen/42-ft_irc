@@ -30,6 +30,9 @@ void PrivmsgCommand::execute() {
     std::string target = _params[0];
     std::string message = _params[1];
 
+    // デバッグ出力
+    std::cout << "PRIVMSG from " << _client->getNickname() << " to " << target << ": " << message << std::endl;
+
     // 宛先が複数の場合はカンマで区切られている
     std::vector<std::string> targets = Utils::split(target, ',');
 
@@ -41,6 +44,7 @@ void PrivmsgCommand::execute() {
             // チャンネルが存在するか確認
             if (!_server->channelExists(currentTarget)) {
                 _client->sendNumericReply(ERR_NOSUCHCHANNEL, currentTarget + " :No such channel");
+                std::cout << "Channel does not exist: " << currentTarget << std::endl;
                 continue;
             }
 
@@ -49,11 +53,13 @@ void PrivmsgCommand::execute() {
             // クライアントがチャンネルに参加しているか確認
             if (!channel->isClientInChannel(_client)) {
                 _client->sendNumericReply(ERR_CANNOTSENDTOCHAN, currentTarget + " :Cannot send to channel");
+                std::cout << "Client not in channel: " << currentTarget << std::endl;
                 continue;
             }
 
             // メッセージを整形
             std::string formattedMessage = ":" + _client->getPrefix() + " PRIVMSG " + currentTarget + " :" + message;
+            std::cout << "Broadcasting to channel: " << formattedMessage << std::endl;
 
             // クライアント自身以外の全メンバーにメッセージを送信
             channel->broadcastMessage(formattedMessage, _client);
@@ -64,11 +70,13 @@ void PrivmsgCommand::execute() {
             Client* targetClient = _server->getClientByNickname(currentTarget);
             if (!targetClient) {
                 _client->sendNumericReply(ERR_NOSUCHNICK, currentTarget + " :No such nick/channel");
+                std::cout << "Target user not found: " << currentTarget << std::endl;
                 continue;
             }
 
             // メッセージを整形
             std::string formattedMessage = ":" + _client->getPrefix() + " PRIVMSG " + currentTarget + " :" + message;
+            std::cout << "Sending to user: " << formattedMessage << std::endl;
 
             // ターゲットユーザーにメッセージを送信
             targetClient->sendMessage(formattedMessage);

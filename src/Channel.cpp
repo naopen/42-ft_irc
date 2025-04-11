@@ -179,8 +179,10 @@ void Channel::removeInvite(const std::string& nickname) {
 
 // メッセージ送信
 void Channel::broadcastMessage(const std::string& message, Client* exclude) {
+    std::cout << "Broadcasting to channel " << _name << ": " << message << std::endl;
     for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
         if (*it != exclude) {
+            std::cout << "Sending to client: " << (*it)->getNickname() << std::endl;
             (*it)->sendMessage(message);
         }
     }
