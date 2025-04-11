@@ -36,6 +36,9 @@ void PassCommand::execute() {
     // パスワード認証成功
     _client->setPassAccepted(true);
 
+    // パスワード認証成功のメッセージを送信
+    _client->sendMessage(":" + _server->getHostname() + " NOTICE Auth :Password accepted");
+
     // NICK と USER が既に設定されている場合は登録完了
     if (!_client->getNickname().empty() && !_client->getUsername().empty()) {
         _client->setStatus(REGISTERED);
