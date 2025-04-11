@@ -173,4 +173,12 @@ public:
     void execute();
 };
 
+class CapCommand : public Command {
+public:
+    CapCommand(Server* server, Client* client, const std::vector<std::string>& params);
+    ~CapCommand();
+
+    void execute();
+};
+
 #endif

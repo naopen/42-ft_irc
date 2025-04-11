@@ -89,6 +89,8 @@ Command* CommandFactory::createCommand(Client* client, const std::string& messag
         return new WhoCommand(_server, client, params);
     } else if (command == "WHOIS") {
         return new WhoisCommand(_server, client, params);
+    } else if (command == "CAP") {
+        return new CapCommand(_server, client, params);
     }
 
     // 未知のコマンド

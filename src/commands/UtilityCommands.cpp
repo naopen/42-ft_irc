@@ -222,3 +222,50 @@ void WhoisCommand::execute() {
     // WHOIS終了
     _client->sendNumericReply(318, targetNick + " :End of /WHOIS list");
 }
+
+// CAP コマンド
+CapCommand::CapCommand(Server* server, Client* client, const std::vector<std::string>& params)
+    : Command(server, client, "CAP", params)
+{
+    _requiresRegistration = false;
+}
+
+CapCommand::~CapCommand() {
+    // 特に何もしない
+}
+
+void CapCommand::execute() {
+    // パラメータが不足している場合はエラー
+    if (_params.empty()) {
+        return;
+    }
+
+    std::string subcommand = Utils::toUpper(_params[0]);
+
+    if (subcommand == "LS") {
+        // CAP LS 要求に対して、サポートされている機能を返す
+        // 現在のサーバーでは特別な機能をサポートしていないため空リストを返す
+        std::string response = ":" + _server->getHostname() + " CAP " +
+                              (_client->getNickname().empty() ? "*" : _client->getNickname()) +
+                              " LS :";
+        _client->sendMessage(response);
+    } else if (subcommand == "LIST") {
+        // 現在アクティブな機能のリストを返す（現状では空）
+        std::string response = ":" + _server->getHostname() + " CAP " +
+                              (_client->getNickname().empty() ? "*" : _client->getNickname()) +
+                              " LIST :";
+        _client->sendMessage(response);
+    } else if (subcommand == "REQ") {
+        // クライアントが機能を要求
+        // 現在の実装ではどの機能もサポートしていないのでNAKを返す
+        if (_params.size() > 1) {
+            std::string response = ":" + _server->getHostname() + " CAP " +
+                                  (_client->getNickname().empty() ? "*" : _client->getNickname()) +
+                                  " NAK :" + _params[1];
+            _client->sendMessage(response);
+        }
+    } else if (subcommand == "END") {
+        // CAP ネゴシエーションの終了
+        // 特に何もしない、クライアントは通常の登録処理に進む
+    }
+}
