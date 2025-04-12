@@ -83,14 +83,56 @@ void Client::setRealname(const std::string& realname) {
 
 void Client::setStatus(ClientStatus status) {
     _status = status;
+
+    // ステータス変更をログに出力
+    std::string statusStr;
+    switch (status) {
+        case CONNECTING:
+            statusStr = "CONNECTING";
+            break;
+        case REGISTERING:
+            statusStr = "REGISTERING";
+            break;
+        case REGISTERED:
+            statusStr = "REGISTERED";
+            break;
+        default:
+            statusStr = "UNKNOWN";
+    }
+
+    std::cout << "\033[1;35m[STATUS] Client " << _fd;
+    if (!_nickname.empty()) {
+        std::cout << " (" << _nickname << ")";
+    }
+    std::cout << " status changed to " << statusStr << "\033[0m" << std::endl;
 }
 
 void Client::setPassAccepted(bool accepted) {
+    bool oldValue = _passAccepted;
     _passAccepted = accepted;
+
+    // 値が変わった場合だけログを出力
+    if (oldValue != accepted) {
+        std::cout << "\033[1;35m[AUTH] Client " << _fd;
+        if (!_nickname.empty()) {
+            std::cout << " (" << _nickname << ")";
+        }
+        std::cout << " password " << (accepted ? "accepted" : "rejected") << "\033[0m" << std::endl;
+    }
 }
 
 void Client::setOperator(bool op) {
+    bool oldValue = _operator;
     _operator = op;
+
+    // 値が変わった場合だけログを出力
+    if (oldValue != op) {
+        std::cout << "\033[1;35m[OPER] Client " << _fd;
+        if (!_nickname.empty()) {
+            std::cout << " (" << _nickname << ")";
+        }
+        std::cout << " is " << (op ? "now" : "no longer") << " an operator\033[0m" << std::endl;
+    }
 }
 
 void Client::updateLastActivity() {
@@ -98,14 +140,34 @@ void Client::updateLastActivity() {
 }
 
 void Client::setAway(bool away, const std::string& message) {
+    bool oldValue = _away;
     _away = away;
     _awayMessage = message;
+
+    // 値が変わった場合だけログを出力
+    if (oldValue != away) {
+        std::cout << "\033[1;35m[AWAY] Client " << _fd;
+        if (!_nickname.empty()) {
+            std::cout << " (" << _nickname << ")";
+        }
+        std::cout << " is " << (away ? "now away" : "no longer away");
+        if (away && !message.empty()) {
+            std::cout << " (" << message << ")";
+        }
+        std::cout << "\033[0m" << std::endl;
+    }
 }
 
 // チャンネル管理
 void Client::addChannel(const std::string& channel) {
     if (!isInChannel(channel)) {
         _channels.push_back(channel);
+
+        std::cout << "\033[1;33m[CHANNEL] Client " << _fd;
+        if (!_nickname.empty()) {
+            std::cout << " (" << _nickname << ")";
+        }
+        std::cout << " joined channel " << channel << "\033[0m" << std::endl;
     }
 }
 
@@ -113,6 +175,12 @@ void Client::removeChannel(const std::string& channel) {
     std::vector<std::string>::iterator it = std::find(_channels.begin(), _channels.end(), channel);
     if (it != _channels.end()) {
         _channels.erase(it);
+
+        std::cout << "\033[1;33m[CHANNEL] Client " << _fd;
+        if (!_nickname.empty()) {
+            std::cout << " (" << _nickname << ")";
+        }
+        std::cout << " left channel " << channel << "\033[0m" << std::endl;
     }
 }
 
@@ -208,15 +276,20 @@ void Client::sendMessage(const std::string& message) {
             fullMessage += "\r\n";
         }
 
-        std::cout << "Sending message to fd " << _fd << ": " << fullMessage;
+        std::cout << "\033[1;34m[SEND] To fd " << _fd;
+        if (!_nickname.empty()) {
+            std::cout << " (" << _nickname << ")";
+        }
+        std::cout << ": " << fullMessage << "\033[0m";
+
         ssize_t sent = send(_fd, fullMessage.c_str(), fullMessage.length(), 0);
         if (sent < 0) {
-            std::cerr << "Error sending message to client: " << strerror(errno) << std::endl;
+            std::cerr << "\033[1;31m[ERROR] Error sending message to client: " << strerror(errno) << "\033[0m" << std::endl;
         } else if (static_cast<size_t>(sent) != fullMessage.length()) {
-            std::cerr << "Warning: Not all data was sent to client" << std::endl;
+            std::cerr << "\033[1;33m[WARNING] Not all data was sent to client\033[0m" << std::endl;
         }
     } else {
-        std::cerr << "Attempting to send message to invalid fd: " << _fd << std::endl;
+        std::cerr << "\033[1;31m[ERROR] Attempting to send message to invalid fd: " << _fd << "\033[0m" << std::endl;
     }
 }
 

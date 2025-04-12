@@ -50,6 +50,9 @@ void Server::run() {
     _running = true;
 
     while (_running) {
+        // サーバーの状態を表示
+        displayServerStatus();
+
         // pollfdの更新
         updatePollFds();
 
@@ -123,20 +126,21 @@ void Server::addClient(int fd, const std::string& hostname) {
     // ファイルディスクリプタをノンブロッキングに設定
     setNonBlocking(fd);
 
-    std::cout << "New client connected: " << fd << " from " << hostname << std::endl;
+    std::cout << "\033[1;32m[+] New client connected: " << fd << " from " << hostname << "\033[0m" << std::endl;
+    displayServerStatus();
 }
 
 void Server::removeClient(int fd) {
     Client* client = getClientByFd(fd);
     if (client) {
-        std::cout << "Client disconnected: " << fd;
+        std::cout << "\033[1;31m[-] Client disconnected: " << fd;
         if (!client->getNickname().empty()) {
             std::cout << " (" << client->getNickname() << ")";
 
             // ニックネームマップから削除
             _nicknames.erase(client->getNickname());
         }
-        std::cout << std::endl;
+        std::cout << "\033[0m" << std::endl;
 
         // すべてのチャンネルからクライアントを削除
         std::vector<std::string> channels = client->getChannels();
@@ -155,6 +159,9 @@ void Server::removeClient(int fd) {
         // クライアントを削除
         delete client;
         _clients.erase(fd);
+
+        // 状態表示を更新
+        displayServerStatus();
     }
 }
 
@@ -179,6 +186,9 @@ void Server::updateNickname(const std::string& oldNick, const std::string& newNi
             _nicknames.erase(it);
             _nicknames[newNick] = client;
             std::cout << "Nickname map updated successfully" << std::endl;
+
+            // 状態表示を更新
+            displayServerStatus();
         }
     } else {
         // 新しいニックネームをクライアントから取得して登録
@@ -186,15 +196,12 @@ void Server::updateNickname(const std::string& oldNick, const std::string& newNi
             if (it->second->getNickname() == newNick) {
                 _nicknames[newNick] = it->second;
                 std::cout << "New nickname added to map: " << newNick << std::endl;
+
+                // 状態表示を更新
+                displayServerStatus();
                 break;
             }
         }
-    }
-
-    // デバッグ: 現在のニックネームマップを表示
-    std::cout << "Current nickname map:" << std::endl;
-    for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
-        std::cout << "  " << it->first << " -> Client on fd " << it->second->getFd() << std::endl;
     }
 }
 
@@ -211,17 +218,21 @@ void Server::createChannel(const std::string& name, Client* creator) {
         Channel* channel = new Channel(name, creator);
         _channels[name] = channel;
 
-        std::cout << "Channel created: " << name << " by " << creator->getNickname() << std::endl;
+        std::cout << "\033[1;33m[+] Channel created: " << name << " by " << creator->getNickname() << "\033[0m" << std::endl;
+        displayServerStatus();
     }
 }
 
 void Server::removeChannel(const std::string& name) {
     std::map<std::string, Channel*>::iterator it = _channels.find(name);
     if (it != _channels.end()) {
-        std::cout << "Channel removed: " << name << std::endl;
+        std::cout << "\033[1;33m[-] Channel removed: " << name << "\033[0m" << std::endl;
 
         delete it->second;
         _channels.erase(it);
+
+        // 状態表示を更新
+        displayServerStatus();
     }
 }
 
@@ -274,11 +285,11 @@ void Server::executeCommand(Client* client, const std::string& message) {
         return;
     }
 
-    std::cout << "Received from " << client->getFd();
+    std::cout << "\033[1;36m[MSG] Received from " << client->getFd();
     if (!client->getNickname().empty()) {
         std::cout << " (" << client->getNickname() << ")";
     }
-    std::cout << ": " << message << std::endl;
+    std::cout << ": " << message << "\033[0m" << std::endl;
 
     // コマンドを作成して実行
     Command* command = _commandFactory->createCommand(client, message);
@@ -415,4 +426,122 @@ void Server::updatePollFds() {
         clientPollFd.revents = 0;
         _pollfds.push_back(clientPollFd);
     }
+}
+
+void Server::displayServerStatus() {
+    static time_t lastUpdate = 0;
+    time_t currentTime = time(NULL);
+
+    // 1秒に1回だけ更新（画面のフラッシュを抑制）
+    if (currentTime - lastUpdate < 1) {
+        return;
+    }
+
+    lastUpdate = currentTime;
+
+    // 画面をクリア
+    std::cout << "\033[2J\033[1;1H";
+
+    // サーバー情報を表示
+    std::cout << "\033[1;44m=== ft_irc Server Status ===\033[0m" << std::endl;
+    std::cout << "Hostname: " << _hostname << " | Port: " << _port << " | Uptime: "
+              << (currentTime - _startTime) << " seconds" << std::endl;
+
+    // チャンネル情報
+    std::cout << "\033[1;44m=== Channels (" << _channels.size() << ") ===\033[0m" << std::endl;
+    if (_channels.empty()) {
+        std::cout << "  No channels" << std::endl;
+    } else {
+        for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
+            Channel* channel = it->second;
+            std::cout << "  " << channel->getName() << " (" << channel->getClientCount() << " users)";
+
+            // チャンネルモードを表示
+            std::cout << " [" << channel->getModes() << "]";
+
+            // トピックを表示
+            if (!channel->getTopic().empty()) {
+                std::cout << " Topic: " << channel->getTopic();
+            }
+
+            std::cout << std::endl;
+        }
+    }
+
+    // ユーザー情報
+    std::cout << "\033[1;44m=== Connected Users (" << _clients.size() << ") ===\033[0m" << std::endl;
+    if (_clients.empty()) {
+        std::cout << "  No users connected" << std::endl;
+    } else {
+        std::cout << "  FD | Nickname | Username | Status | Channels | Operator" << std::endl;
+        std::cout << "  ------------------------------------------------------" << std::endl;
+
+        for (std::map<int, Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+            Client* client = it->second;
+            std::string status;
+
+            switch (client->getStatus()) {
+                case CONNECTING:
+                    status = "Connecting";
+                    break;
+                case REGISTERING:
+                    status = "Registering";
+                    break;
+                case REGISTERED:
+                    status = "Registered";
+                    break;
+                default:
+                    status = "Unknown";
+            }
+
+            // オペレーターかどうか
+            std::string opStatus = client->isOperator() ? "Yes" : "No";
+
+            // 参加中のチャンネル数
+            size_t channelCount = client->getChannels().size();
+
+            std::cout << "  " << client->getFd() << " | "
+                      << (client->getNickname().empty() ? "*" : client->getNickname()) << " | "
+                      << (client->getUsername().empty() ? "*" : client->getUsername()) << " | "
+                      << status << " | "
+                      << channelCount << " | "
+                      << opStatus << std::endl;
+        }
+    }
+
+    std::cout << "\033[1;44m=== Channel Operators ===\033[0m" << std::endl;
+    bool hasOperators = false;
+
+    for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
+        Channel* channel = it->second;
+        std::vector<Client*> clients = channel->getClients();
+        std::vector<std::string> operators;
+
+        // チャンネルのオペレーターを収集
+        for (std::vector<Client*>::iterator cit = clients.begin(); cit != clients.end(); ++cit) {
+            if (channel->isOperator((*cit)->getNickname())) {
+                operators.push_back((*cit)->getNickname());
+            }
+        }
+
+        if (!operators.empty()) {
+            hasOperators = true;
+            std::cout << "  " << channel->getName() << ": ";
+
+            for (size_t i = 0; i < operators.size(); ++i) {
+                if (i > 0) {
+                    std::cout << ", ";
+                }
+                std::cout << operators[i];
+            }
+
+            std::cout << std::endl;
+        }
+    }
+
+    if (!hasOperators) {
+        std::cout << "  No channel operators" << std::endl;
+    }
+
+    std::cout << "\033[1;44m===========================\033[0m" << std::endl;
 }

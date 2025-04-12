@@ -7,11 +7,15 @@ Channel::Channel(const std::string& name, Client* creator)
     if (creator) {
         _clients.push_back(creator);
         _operators.push_back(creator->getNickname());
+
+        std::cout << "\033[1;33m[CHANNEL] Created " << name << " with creator "
+                  << creator->getNickname() << " as operator\033[0m" << std::endl;
     }
 }
 
 Channel::~Channel() {
     // メモリ管理はサーバークラスで行うため、ここでは特に何もしない
+    std::cout << "\033[1;33m[CHANNEL] Destroying channel " << _name << "\033[0m" << std::endl;
 }
 
 // ゲッター
@@ -57,28 +61,54 @@ time_t Channel::getCreationTime() const {
 
 // セッター
 void Channel::setTopic(const std::string& topic) {
+    std::string oldTopic = _topic;
     _topic = topic;
+
+    std::cout << "\033[1;33m[CHANNEL] " << _name << " topic changed";
+    if (oldTopic.empty()) {
+        std::cout << " to: " << topic;
+    } else {
+        std::cout << " from: " << oldTopic << " to: " << topic;
+    }
+    std::cout << "\033[0m" << std::endl;
 }
 
 void Channel::setKey(const std::string& key) {
+    bool hadKey = hasKey();
     _key = key;
+
+    if (key.empty() && hadKey) {
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " key removed\033[0m" << std::endl;
+    } else if (!key.empty()) {
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " key set to: " << key << "\033[0m" << std::endl;
+    }
 }
 
 void Channel::setInviteOnly(bool inviteOnly) {
-    _inviteOnly = inviteOnly;
+    if (_inviteOnly != inviteOnly) {
+        _inviteOnly = inviteOnly;
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " invite-only mode "
+                  << (inviteOnly ? "enabled" : "disabled") << "\033[0m" << std::endl;
+    }
 }
 
 void Channel::setTopicRestricted(bool restricted) {
-    _topicRestricted = restricted;
+    if (_topicRestricted != restricted) {
+        _topicRestricted = restricted;
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " topic restriction "
+                  << (restricted ? "enabled" : "disabled") << "\033[0m" << std::endl;
+    }
 }
 
 void Channel::setUserLimit(size_t limit) {
     if (limit > 0) {
         _userLimit = limit;
         _hasUserLimit = true;
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " user limit set to " << limit << "\033[0m" << std::endl;
     } else {
         _userLimit = 0;
         _hasUserLimit = false;
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " user limit removed\033[0m" << std::endl;
     }
 }
 
@@ -91,16 +121,22 @@ bool Channel::addClient(Client* client, const std::string& key) {
 
     // キーが設定されている場合はチェック
     if (hasKey() && key != _key) {
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " access denied for "
+                  << client->getNickname() << ": invalid key\033[0m" << std::endl;
         return false;
     }
 
     // 招待制の場合は招待されているかチェック
     if (_inviteOnly && !isInvited(client->getNickname())) {
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " access denied for "
+                  << client->getNickname() << ": not invited\033[0m" << std::endl;
         return false;
     }
 
     // ユーザー数制限チェック
     if (_hasUserLimit && _clients.size() >= _userLimit) {
+        std::cout << "\033[1;33m[CHANNEL] " << _name << " access denied for "
+                  << client->getNickname() << ": channel full\033[0m" << std::endl;
         return false;
     }
 
@@ -111,6 +147,8 @@ bool Channel::addClient(Client* client, const std::string& key) {
     // 招待リストから削除
     removeInvite(client->getNickname());
 
+    std::cout << "\033[1;32m[CHANNEL] " << client->getNickname() << " joined " << _name
+              << " (total users: " << _clients.size() << ")\033[0m" << std::endl;
     return true;
 }
 
@@ -120,6 +158,9 @@ void Channel::removeClient(Client* client) {
     if (it != _clients.end()) {
         _clients.erase(it);
         client->removeChannel(_name);
+
+        std::cout << "\033[1;31m[CHANNEL] " << client->getNickname() << " left " << _name
+                  << " (total users: " << _clients.size() << ")\033[0m" << std::endl;
     }
 
     // オペレータから削除
@@ -149,6 +190,7 @@ bool Channel::isOperator(const std::string& nickname) const {
 void Channel::addOperator(const std::string& nickname) {
     if (!isOperator(nickname)) {
         _operators.push_back(nickname);
+        std::cout << "\033[1;35m[CHANNEL] " << nickname << " is now an operator in " << _name << "\033[0m" << std::endl;
     }
 }
 
@@ -156,6 +198,7 @@ void Channel::removeOperator(const std::string& nickname) {
     std::vector<std::string>::iterator it = std::find(_operators.begin(), _operators.end(), nickname);
     if (it != _operators.end()) {
         _operators.erase(it);
+        std::cout << "\033[1;35m[CHANNEL] " << nickname << " is no longer an operator in " << _name << "\033[0m" << std::endl;
     }
 }
 
@@ -163,6 +206,7 @@ void Channel::removeOperator(const std::string& nickname) {
 void Channel::inviteUser(const std::string& nickname) {
     if (!isInvited(nickname)) {
         _invitedUsers.push_back(nickname);
+        std::cout << "\033[1;33m[CHANNEL] " << nickname << " was invited to " << _name << "\033[0m" << std::endl;
     }
 }
 
@@ -174,15 +218,16 @@ void Channel::removeInvite(const std::string& nickname) {
     std::vector<std::string>::iterator it = std::find(_invitedUsers.begin(), _invitedUsers.end(), nickname);
     if (it != _invitedUsers.end()) {
         _invitedUsers.erase(it);
+        std::cout << "\033[1;33m[CHANNEL] Removed " << nickname << " from " << _name << " invite list\033[0m" << std::endl;
     }
 }
 
 // メッセージ送信
 void Channel::broadcastMessage(const std::string& message, Client* exclude) {
-    std::cout << "Broadcasting to channel " << _name << ": " << message << std::endl;
+    std::cout << "\033[1;34m[BROADCAST] To channel " << _name << ": " << message << "\033[0m" << std::endl;
+
     for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
         if (*it != exclude) {
-            std::cout << "Sending to client: " << (*it)->getNickname() << std::endl;
             (*it)->sendMessage(message);
         }
     }
@@ -223,39 +268,61 @@ std::string Channel::getModes() const {
     return modes;
 }
 
-bool Channel::applyMode(char mode, bool set, const std::string& param, Client*) {
+bool Channel::applyMode(char mode, bool set, const std::string& param, Client* client) {
+    std::string clientNick = client ? client->getNickname() : "Unknown";
+
     switch (mode) {
         case 'i': // 招待制
             setInviteOnly(set);
+            std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                      << " mode " << (set ? "+" : "-") << "i\033[0m" << std::endl;
             return true;
+
         case 't': // トピック制限
             setTopicRestricted(set);
+            std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                      << " mode " << (set ? "+" : "-") << "t\033[0m" << std::endl;
             return true;
+
         case 'k': // キー（パスワード）
             if (set && !param.empty()) {
                 setKey(param);
+                std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                          << " mode +k " << param << "\033[0m" << std::endl;
                 return true;
             } else if (!set) {
                 setKey("");
+                std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                          << " mode -k\033[0m" << std::endl;
                 return true;
             }
             break;
+
         case 'o': // オペレータ権限
             if (!param.empty()) {
                 if (set) {
                     addOperator(param);
+                    std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                              << " mode +o " << param << "\033[0m" << std::endl;
                 } else {
                     removeOperator(param);
+                    std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                              << " mode -o " << param << "\033[0m" << std::endl;
                 }
                 return true;
             }
             break;
+
         case 'l': // ユーザー数制限
             if (set && !param.empty()) {
                 setUserLimit(std::atoi(param.c_str()));
+                std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                          << " mode +l " << param << "\033[0m" << std::endl;
                 return true;
             } else if (!set) {
                 setUserLimit(0);
+                std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
+                          << " mode -l\033[0m" << std::endl;
                 return true;
             }
             break;

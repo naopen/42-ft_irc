@@ -66,6 +66,9 @@ public:
     int             getPort() const;
     time_t          getStartTime() const;
 
+    // サーバー状態表示
+    void            displayServerStatus();
+
 private:
     // ソケット初期化
     void            initializeSocket();

@@ -18,6 +18,7 @@ bool Command::requiresRegistration() const {
 bool Command::canExecute() const {
     if (_requiresRegistration && !_client->isRegistered()) {
         _client->sendNumericReply(ERR_NOTREGISTERED, ":You have not registered");
+        std::cout << "\033[1;31m[COMMAND] " << _name << " failed: client not registered\033[0m" << std::endl;
         return false;
     }
     return true;
@@ -50,11 +51,24 @@ CommandFactory::~CommandFactory() {
 Command* CommandFactory::createCommand(Client* client, const std::string& message) {
     Parser parser(message);
     if (!parser.isValid()) {
+        std::cout << "\033[1;31m[PARSER] Invalid message format: " << message << "\033[0m" << std::endl;
         return NULL;
     }
 
     std::string command = parser.getCommand();
     std::vector<std::string> params = parser.getParams();
+
+    std::cout << "\033[1;36m[COMMAND] Creating command: " << command;
+    if (!params.empty()) {
+        std::cout << " with params:";
+        for (size_t i = 0; i < params.size() && i < 3; ++i) {
+            std::cout << " [" << params[i] << "]";
+        }
+        if (params.size() > 3) {
+            std::cout << " ...";
+        }
+    }
+    std::cout << "\033[0m" << std::endl;
 
     // 使用可能なコマンドを作成
     if (command == "PASS") {
@@ -94,6 +108,8 @@ Command* CommandFactory::createCommand(Client* client, const std::string& messag
     }
 
     // 未知のコマンド
+    std::cout << "\033[1;31m[COMMAND] Unknown command: " << command << "\033[0m" << std::endl;
+
     // クライアントがすでに登録されている場合のみエラーを送信
     if (client->isRegistered()) {
         client->sendNumericReply(421, command + " :Unknown command");
