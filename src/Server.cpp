@@ -137,8 +137,26 @@ void Server::removeClient(int fd) {
         if (!client->getNickname().empty()) {
             std::cout << " (" << client->getNickname() << ")";
 
-            // ニックネームマップから削除
-            _nicknames.erase(client->getNickname());
+            // ニックネームマップから削除 - 現在のニックネームを削除
+            std::string nickname = client->getNickname();
+            if (_nicknames.find(nickname) != _nicknames.end()) {
+                std::cout << "\n\033[1;35m[NICKMAP] Removing nickname: " << nickname << "\033[0m";
+                _nicknames.erase(nickname);
+            }
+
+            // ニックネームマップの整合性チェック - このクライアントが別のニックネームでマップに残っていないか確認
+            std::vector<std::string> nicksToRemove;
+            for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
+                if (it->second == client) {
+                    nicksToRemove.push_back(it->first);
+                }
+            }
+
+            // 見つかった古いニックネームを削除
+            for (std::vector<std::string>::iterator it = nicksToRemove.begin(); it != nicksToRemove.end(); ++it) {
+                std::cout << "\n\033[1;35m[NICKMAP] Removing stale nickname: " << *it << "\033[0m";
+                _nicknames.erase(*it);
+            }
         }
         std::cout << "\033[0m" << std::endl;
 
@@ -177,30 +195,57 @@ bool Server::isNicknameInUse(const std::string& nickname) {
 }
 
 void Server::updateNickname(const std::string& oldNick, const std::string& newNick) {
-    std::cout << "Updating nickname map: '" << oldNick << "' -> '" << newNick << "'" << std::endl;
+    std::cout << "\033[1;35m[NICKMAP] Updating: '" << oldNick << "' -> '" << newNick << "'\033[0m" << std::endl;
 
+    // クライアントを特定
+    Client* client = NULL;
+
+    // 古いニックネームがある場合はそれを使ってクライアントを特定
     if (!oldNick.empty()) {
         std::map<std::string, Client*>::iterator it = _nicknames.find(oldNick);
         if (it != _nicknames.end()) {
-            Client* client = it->second;
-            _nicknames.erase(it);
-            _nicknames[newNick] = client;
-            std::cout << "Nickname map updated successfully" << std::endl;
+            client = it->second;
 
-            // 状態表示を更新
-            displayServerStatus();
+            // 古いニックネームをマップから削除
+            std::cout << "\033[1;35m[NICKMAP] Removing old nickname: " << oldNick << "\033[0m" << std::endl;
+            _nicknames.erase(it);
+        } else {
+            std::cout << "\033[1;31m[ERROR] Old nickname not found in map: " << oldNick << "\033[0m" << std::endl;
         }
-    } else {
-        // 新しいニックネームをクライアントから取得して登録
+    }
+
+    // クライアントが特定できなかった場合、FDマップから探す
+    if (!client) {
         for (std::map<int, Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
             if (it->second->getNickname() == newNick) {
-                _nicknames[newNick] = it->second;
-                std::cout << "New nickname added to map: " << newNick << std::endl;
-
-                // 状態表示を更新
-                displayServerStatus();
+                client = it->second;
+                std::cout << "\033[1;35m[NICKMAP] Client found by new nickname in client map\033[0m" << std::endl;
                 break;
             }
+        }
+    }
+
+    // クライアントが見つかった場合、新しいニックネームで登録
+    if (client) {
+        _nicknames[newNick] = client;
+        std::cout << "\033[1;35m[NICKMAP] Added new nickname: " << newNick << "\033[0m" << std::endl;
+    } else {
+        std::cout << "\033[1;31m[ERROR] Failed to find client for nickname update\033[0m" << std::endl;
+        return;
+    }
+
+    // デバッグ: 現在のニックネームマップを表示
+    std::cout << "\033[1;35m[NICKMAP] Current map:\033[0m" << std::endl;
+    for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
+        std::cout << "  " << it->first << " -> Client on fd " << it->second->getFd()
+                  << " (actual nickname: " << it->second->getNickname() << ")" << std::endl;
+    }
+
+    // マップの整合性チェック - 警告表示
+    for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
+        if (it->first != it->second->getNickname()) {
+            std::cout << "\033[1;31m[WARNING] Nickname map inconsistency detected: "
+                      << it->first << " != " << it->second->getNickname() << "\033[0m" << std::endl;
         }
     }
 }
@@ -541,6 +586,28 @@ void Server::displayServerStatus() {
 
     if (!hasOperators) {
         std::cout << "  No channel operators" << std::endl;
+    }
+
+    std::cout << "\033[1;44m===========================\033[0m" << std::endl;
+
+    // ニックネームマップの情報も表示
+    std::cout << "\033[1;44m=== Nickname Map ===\033[0m" << std::endl;
+    if (_nicknames.empty()) {
+        std::cout << "  No nicknames registered" << std::endl;
+    } else {
+        std::cout << "  Nickname | Client FD" << std::endl;
+        std::cout << "  ------------------" << std::endl;
+
+        for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
+            std::cout << "  " << it->first << " | " << it->second->getFd();
+
+            // マップの整合性チェック - 不一致があれば警告表示
+            if (it->first != it->second->getNickname()) {
+                std::cout << " \033[1;31m[MISMATCH: actual=" << it->second->getNickname() << "]\033[0m";
+            }
+
+            std::cout << std::endl;
+        }
     }
 
     std::cout << "\033[1;44m===========================\033[0m" << std::endl;
