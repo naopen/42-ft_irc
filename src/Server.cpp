@@ -55,37 +55,22 @@ void Server::run() {
     // 初期状態を表示
     displayServerStatus();
 
+    // 状態変化を追跡するための変数を初期化
+    size_t lastClientCount = _clients.size();
+    size_t lastChannelCount = _channels.size();
+    size_t lastNicknameCount = _nicknames.size();
+
     while (_running) {
-        // サーバーの状態を表示
-        // 状態表示の頻度を下げる (例えば30秒ごと) または明示的なコマンドのみで表示
-        static time_t lastStatusUpdate = 0;
-        time_t currentTime = time(NULL);
-
-        // クライアント数やチャンネル数が変わった場合のみ表示を更新
-        static size_t lastClientCount = 0;
-        static size_t lastChannelCount = 0;
-        static size_t lastNicknameCount = 0;
-
-        bool shouldUpdateStatus = false;
-
-        // クライアント数、チャンネル数、ニックネーム数のいずれかが変わった場合に更新
+        // クライアント数、チャンネル数、ニックネーム数のいずれかが変わった場合にのみステータスを更新
         if (_clients.size() != lastClientCount ||
             _channels.size() != lastChannelCount ||
-            _nicknames.size() != lastNicknameCount) {
-            shouldUpdateStatus = true;
+            _nicknames.size() != lastNicknameCount)
+        {
+            displayServerStatus();
+            // 現在の状態を保存
             lastClientCount = _clients.size();
             lastChannelCount = _channels.size();
             lastNicknameCount = _nicknames.size();
-        }
-
-        // または30秒経過したら更新
-        if (currentTime - lastStatusUpdate >= 30) {
-            shouldUpdateStatus = true;
-        }
-
-        if (shouldUpdateStatus) {
-            displayServerStatus();
-            lastStatusUpdate = currentTime;
         }
 
         // pollfdの更新
