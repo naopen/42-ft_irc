@@ -65,4 +65,33 @@ namespace Utils {
 
         return ss.str();
     }
+
+    // 明示的なtoString実装例（テンプレート版のほかに、特定の型向けの実装を追加できる）
+    // 例: 時間の整形
+    std::string formatDuration(time_t seconds) {
+        std::stringstream ss;
+
+        int days = seconds / 86400;
+        seconds %= 86400;
+        int hours = seconds / 3600;
+        seconds %= 3600;
+        int minutes = seconds / 60;
+        seconds %= 60;
+
+        if (days > 0) {
+            ss << days << "d ";
+        }
+
+        if (hours > 0 || days > 0) {
+            ss << hours << "h ";
+        }
+
+        if (minutes > 0 || hours > 0 || days > 0) {
+            ss << minutes << "m ";
+        }
+
+        ss << seconds << "s";
+
+        return ss.str();
+    }
 }

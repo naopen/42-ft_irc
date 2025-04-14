@@ -25,6 +25,7 @@ private:
     bool                                _running;            // サーバー実行中フラグ
     CommandFactory*                     _commandFactory;     // コマンドファクトリー
     time_t                              _startTime;          // サーバー起動時間
+    bool                                _detailedView;       // 詳細表示モード
 
 public:
     friend class NickCommand;
@@ -68,6 +69,11 @@ public:
 
     // サーバー状態表示
     void            displayServerStatus();
+    void            showRecentConnections();
+    void            addConnectionLog(const std::string& log, const std::string& color);
+    void            toggleDetailedView();
+    void            displayDetailedStatus();
+    void            checkInput();
 
 private:
     // ソケット初期化
