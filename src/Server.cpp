@@ -52,11 +52,38 @@ void Server::setup() {
 void Server::run() {
     _running = true;
 
+    // 初期状態を表示
+    displayServerStatus();
+
     while (_running) {
-        // サーバーの状態を表示 (5秒ごとに更新)
+        // サーバーの状態を表示
+        // 状態表示の頻度を下げる (例えば30秒ごと) または明示的なコマンドのみで表示
         static time_t lastStatusUpdate = 0;
         time_t currentTime = time(NULL);
-        if (currentTime - lastStatusUpdate >= 5) {
+
+        // クライアント数やチャンネル数が変わった場合のみ表示を更新
+        static size_t lastClientCount = 0;
+        static size_t lastChannelCount = 0;
+        static size_t lastNicknameCount = 0;
+
+        bool shouldUpdateStatus = false;
+
+        // クライアント数、チャンネル数、ニックネーム数のいずれかが変わった場合に更新
+        if (_clients.size() != lastClientCount ||
+            _channels.size() != lastChannelCount ||
+            _nicknames.size() != lastNicknameCount) {
+            shouldUpdateStatus = true;
+            lastClientCount = _clients.size();
+            lastChannelCount = _channels.size();
+            lastNicknameCount = _nicknames.size();
+        }
+
+        // または30秒経過したら更新
+        if (currentTime - lastStatusUpdate >= 30) {
+            shouldUpdateStatus = true;
+        }
+
+        if (shouldUpdateStatus) {
             displayServerStatus();
             lastStatusUpdate = currentTime;
         }
@@ -416,7 +443,7 @@ void Server::displayServerStatus() {
 
     // 区切り線
     statusStream << "\033[1;44m";
-    for (int i = 0; i < 80; i++) statusStream << "=";
+    for (int i = 0; i < 50; i++) statusStream << "=";
     statusStream << "\033[0m" << std::endl;
 
     // サーバー情報
@@ -560,7 +587,7 @@ void Server::displayServerStatus() {
 
     // 区切り線
     statusStream << "\033[1;44m";
-    for (int i = 0; i < 80; i++) statusStream << "=";
+    for (int i = 0; i < 50; i++) statusStream << "=";
     statusStream << "\033[0m" << std::endl;
 
     // 一度にステータスを表示（画面のちらつきを防止）
@@ -675,6 +702,9 @@ void Server::checkDisconnectedClients() {
 }
 
 void Server::updatePollFds() {
+    // 前回の poll FDs の数を保存
+    static size_t lastPollFDCount = 0;
+
     _pollfds.clear();
 
     // サーバーソケットを追加
@@ -693,5 +723,9 @@ void Server::updatePollFds() {
         _pollfds.push_back(clientPollFd);
     }
 
-    std::cout << "\033[1;36m[SERVER] Poll array updated: " << _pollfds.size() << " file descriptors monitored\033[0m" << std::endl;
+    // FD の数が変わった場合のみログを出力
+    if (_pollfds.size() != lastPollFDCount) {
+        std::cout << "\033[1;36m[SERVER] Poll array updated: " << _pollfds.size() << " file descriptors monitored\033[0m" << std::endl;
+        lastPollFDCount = _pollfds.size();
+    }
 }
