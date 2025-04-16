@@ -114,9 +114,29 @@ void Channel::setUserLimit(size_t limit) {
 
 // ユーザー管理
 bool Channel::addClient(Client* client, const std::string& key) {
+    // クライアントのnullチェック
+    if (!client) {
+        std::cout << "\033[1;31m[ERROR] Attempted to add NULL client to channel " << _name << "\033[0m" << std::endl;
+        return false;
+    }
+
     // すでに参加している場合は何もしない
     if (isClientInChannel(client)) {
+        std::cout << "\033[1;33m[CHANNEL] Client " << client->getNickname() << " is already in channel " << _name << "\033[0m" << std::endl;
         return true;
+    }
+
+    // 無効なニックネームのチェック
+    if (client->getNickname().empty()) {
+        std::cout << "\033[1;31m[ERROR] Cannot add client with empty nickname to channel " << _name << "\033[0m" << std::endl;
+        return false;
+    }
+
+    // ニックネーム長のチェック
+    if (client->getNickname().length() > 9) {
+        std::cout << "\033[1;31m[ERROR] Cannot add client with nickname longer than 9 characters: "
+                  << client->getNickname() << "\033[0m" << std::endl;
+        return false;
     }
 
     // キーが設定されている場合はチェック
@@ -136,7 +156,16 @@ bool Channel::addClient(Client* client, const std::string& key) {
     // ユーザー数制限チェック
     if (_hasUserLimit && _clients.size() >= _userLimit) {
         std::cout << "\033[1;33m[CHANNEL] " << _name << " access denied for "
-                  << client->getNickname() << ": channel full\033[0m" << std::endl;
+                  << client->getNickname() << ": channel full (" << _clients.size()
+                  << "/" << _userLimit << ")\033[0m" << std::endl;
+        return false;
+    }
+
+    // 過剰なクライアント数のチェック（実装上の制限）
+    const size_t MAX_CLIENTS_PER_CHANNEL = 200;
+    if (_clients.size() >= MAX_CLIENTS_PER_CHANNEL) {
+        std::cout << "\033[1;31m[ERROR] Channel " << _name << " has reached maximum capacity ("
+                  << MAX_CLIENTS_PER_CHANNEL << " clients)\033[0m" << std::endl;
         return false;
     }
 

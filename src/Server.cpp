@@ -582,6 +582,12 @@ void Server::displayServerStatus() {
 void Server::initializeSocket() {
     struct sockaddr_in serverAddr;
 
+    // ポート番号の範囲チェック（冗長チェック）
+    if (_port <= 0 || _port > 65535) {
+        std::cerr << "\033[1;31m[ERROR] Invalid port number: " << _port << "\033[0m" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     // ソケットの作成
     _serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (_serverSocket < 0) {
@@ -595,8 +601,25 @@ void Server::initializeSocket() {
     if (setsockopt(_serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         std::cout << "\033[1;31m[ERROR] setsockopt() failed: " << strerror(errno) << "\033[0m" << std::endl;
         perror("setsockopt");
+        close(_serverSocket);
         exit(EXIT_FAILURE);
     }
+
+    // // SO_REUSEPORTオプションの設定（可能な場合）
+    // #ifdef SO_REUSEPORT
+    // if (setsockopt(_serverSocket, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+    //     std::cout << "\033[1;33m[WARNING] setsockopt(SO_REUSEPORT) failed: " << strerror(errno) << "\033[0m" << std::endl;
+    //     // 致命的でないためcontinue
+    // }
+    // #endif
+
+    // // TCP_NODELAYオプションの設定（パフォーマンス向上）
+    // #ifdef TCP_NODELAY
+    // if (setsockopt(_serverSocket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+    //     std::cout << "\033[1;33m[WARNING] setsockopt(TCP_NODELAY) failed: " << strerror(errno) << "\033[0m" << std::endl;
+    //     // 致命的でないためcontinue
+    // }
+    // #endif
 
     // ノンブロッキングに設定
     setNonBlocking(_serverSocket);
@@ -611,6 +634,7 @@ void Server::initializeSocket() {
     if (bind(_serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         std::cout << "\033[1;31m[ERROR] bind() failed: " << strerror(errno) << "\033[0m" << std::endl;
         perror("bind");
+        close(_serverSocket);
         exit(EXIT_FAILURE);
     }
 
@@ -618,6 +642,7 @@ void Server::initializeSocket() {
     if (listen(_serverSocket, 10) < 0) {
         std::cout << "\033[1;31m[ERROR] listen() failed: " << strerror(errno) << "\033[0m" << std::endl;
         perror("listen");
+        close(_serverSocket);
         exit(EXIT_FAILURE);
     }
 

@@ -49,6 +49,18 @@ CommandFactory::~CommandFactory() {
 }
 
 Command* CommandFactory::createCommand(Client* client, const std::string& message) {
+    // メッセージのサイズチェック
+    if (message.empty()) {
+        std::cout << "\033[1;31m[COMMAND] Empty message received\033[0m" << std::endl;
+        return NULL;
+    }
+
+    if (message.length() > 512) {
+        std::cout << "\033[1;31m[COMMAND] Message too long, truncating to 512 characters\033[0m" << std::endl;
+        // メッセージが長すぎる場合は無視（RFC準拠）
+        return NULL;
+    }
+
     Parser parser(message);
     if (!parser.isValid()) {
         std::cout << "\033[1;31m[PARSER] Invalid message format: " << message << "\033[0m" << std::endl;
@@ -57,6 +69,19 @@ Command* CommandFactory::createCommand(Client* client, const std::string& messag
 
     std::string command = parser.getCommand();
     std::vector<std::string> params = parser.getParams();
+
+    // 不正なコマンド名のチェック
+    if (command.empty() || command.length() > 16) {
+        std::cout << "\033[1;31m[COMMAND] Invalid command name: '" << command << "'\033[0m" << std::endl;
+        return NULL;
+    }
+
+    // 過剰なパラメータ数のチェック
+    if (params.size() > 15) {
+        std::cout << "\033[1;31m[COMMAND] Too many parameters: " << params.size() << " (max 15)\033[0m" << std::endl;
+        // RFC 2812によれば、最大15パラメータまで
+        params.resize(15);
+    }
 
     std::cout << "\033[1;36m[COMMAND] Creating command: " << command;
     if (!params.empty()) {
@@ -116,4 +141,4 @@ Command* CommandFactory::createCommand(Client* client, const std::string& messag
     }
 
     return NULL;
-}
+    }

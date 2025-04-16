@@ -70,14 +70,57 @@ std::string Client::getPrefix() const {
 
 // セッター
 void Client::setNickname(const std::string& nickname) {
+    // ニックネームのバリデーション
+    if (nickname.empty()) {
+        std::cout << "\033[1;31m[ERROR] Cannot set empty nickname\033[0m" << std::endl;
+        return;
+    }
+
+    // ニックネーム長のチェック（9文字以下制限）
+    if (nickname.length() > 9) {
+        std::cout << "\033[1;31m[ERROR] Nickname too long: " << nickname << "\033[0m" << std::endl;
+        return;
+    }
+
+    // ニックネームの文字をチェック（英数字とハイフン、アンダースコアのみ許可）
+    for (size_t i = 0; i < nickname.length(); i++) {
+        char c = nickname[i];
+        if (!isalnum(c) && c != '-' && c != '_') {
+            std::cout << "\033[1;31m[ERROR] Invalid character in nickname: " << c << "\033[0m" << std::endl;
+            return;
+        }
+    }
+
     _nickname = nickname;
 }
 
 void Client::setUsername(const std::string& username) {
+    // ユーザー名のバリデーション
+    if (username.empty()) {
+        std::cout << "\033[1;31m[ERROR] Cannot set empty username\033[0m" << std::endl;
+        return;
+    }
+
+    // 無効な文字のチェック（スペース、NUL、CR、LF、コロン不可）
+    for (size_t i = 0; i < username.length(); i++) {
+        char c = username[i];
+        if (c <= 32 || c == ':' || c == '@' || c == '!') {
+            std::cout << "\033[1;31m[ERROR] Invalid character in username: " << c << "\033[0m" << std::endl;
+            return;
+        }
+    }
+
     _username = username;
 }
 
 void Client::setRealname(const std::string& realname) {
+    // 本名が長すぎる場合は切り詰める
+    if (realname.length() > 100) {
+        std::cout << "\033[1;33m[WARNING] Truncating realname to 100 characters\033[0m" << std::endl;
+        _realname = realname.substr(0, 100);
+        return;
+    }
+
     _realname = realname;
 }
 
@@ -140,9 +183,16 @@ void Client::updateLastActivity() {
 }
 
 void Client::setAway(bool away, const std::string& message) {
+    // メッセージが長すぎる場合は切り詰める
+    std::string truncatedMessage = message;
+    if (truncatedMessage.length() > 100) {
+        std::cout << "\033[1;33m[WARNING] Truncating away message to 100 characters\033[0m" << std::endl;
+        truncatedMessage = truncatedMessage.substr(0, 100);
+    }
+
     bool oldValue = _away;
     _away = away;
-    _awayMessage = message;
+    _awayMessage = truncatedMessage;
 
     // 値が変わった場合だけログを出力
     if (oldValue != away) {
@@ -151,8 +201,8 @@ void Client::setAway(bool away, const std::string& message) {
             std::cout << " (" << _nickname << ")";
         }
         std::cout << " is " << (away ? "now away" : "no longer away");
-        if (away && !message.empty()) {
-            std::cout << " (" << message << ")";
+        if (away && !truncatedMessage.empty()) {
+            std::cout << " (" << truncatedMessage << ")";
         }
         std::cout << "\033[0m" << std::endl;
     }
@@ -160,6 +210,13 @@ void Client::setAway(bool away, const std::string& message) {
 
 // チャンネル管理
 void Client::addChannel(const std::string& channel) {
+    // チャンネル名のバリデーション
+    if (channel.empty() || channel[0] != CHANNEL_PREFIX) {
+        std::cout << "\033[1;31m[ERROR] Invalid channel name: " << channel << "\033[0m" << std::endl;
+        return;
+    }
+
+    // 重複チェック
     if (!isInChannel(channel)) {
         _channels.push_back(channel);
 
@@ -190,6 +247,12 @@ bool Client::isInChannel(const std::string& channel) const {
 
 // バッファ操作
 void Client::appendToBuffer(const std::string& data) {
+    // データサイズの制限チェック（DoS対策）
+    if (_buffer.length() > 4096) {
+        std::cout << "\033[1;31m[WARNING] Buffer overflow from client " << _fd << ", clearing buffer\033[0m" << std::endl;
+        _buffer.clear();
+    }
+
     // エスケープシーケンスを検出してフィルタリング
     std::string filtered;
     for (size_t i = 0; i < data.length(); i++) {
@@ -232,13 +295,25 @@ std::vector<std::string> Client::getCompleteMessages() {
     size_t pos = 0;
     size_t found;
 
+    // バッファが大きすぎる場合は切り詰める（DoS対策）
+    if (_buffer.length() > 8192) {
+        std::cout << "\033[1;31m[WARNING] Buffer too large (" << _buffer.length()
+                  << " bytes) from client " << _fd << ", truncating\033[0m" << std::endl;
+        _buffer = _buffer.substr(0, 8192);
+    }
+
     // \r\n または \n のいずれかで区切られた完全なメッセージを検索
     while (true) {
         // まず\r\nを探す
         found = _buffer.find("\r\n", pos);
         if (found != std::string::npos) {
             std::string message = _buffer.substr(pos, found - pos);
-            messages.push_back(message);
+
+            // メッセージが空でない場合のみ追加
+            if (!message.empty()) {
+                messages.push_back(message);
+            }
+
             pos = found + 2; // \r\nの長さ分進める
             continue;
         }
@@ -251,7 +326,12 @@ std::vector<std::string> Client::getCompleteMessages() {
             if (!message.empty() && message[message.length() - 1] == '\r') {
                 message = message.substr(0, message.length() - 1);
             }
-            messages.push_back(message);
+
+            // メッセージが空でない場合のみ追加
+            if (!message.empty()) {
+                messages.push_back(message);
+            }
+
             pos = found + 1; // \nの長さ分進める
             continue;
         }
@@ -265,6 +345,13 @@ std::vector<std::string> Client::getCompleteMessages() {
         _buffer = _buffer.substr(pos);
     }
 
+    // 過剰なメッセージ数の制限
+    if (messages.size() > 100) {
+        std::cout << "\033[1;31m[WARNING] Too many messages (" << messages.size()
+                  << ") from client " << _fd << ", truncating to 100\033[0m" << std::endl;
+        messages.resize(100);
+    }
+
     return messages;
 }
 
@@ -272,7 +359,17 @@ std::vector<std::string> Client::getCompleteMessages() {
 void Client::sendMessage(const std::string& message) {
     if (_fd >= 0) {
         std::string fullMessage = message;
-        if (fullMessage.find("\r\n") == std::string::npos) {
+
+        // メッセージが長すぎる場合は切り詰める
+        if (fullMessage.length() > 512) {
+            std::cout << "\033[1;33m[WARNING] Truncating message to 512 characters\033[0m" << std::endl;
+            fullMessage = fullMessage.substr(0, 510);
+
+            // 末尾に\r\nがない場合は追加
+            if (fullMessage.find("\r\n", fullMessage.length() - 2) == std::string::npos) {
+                fullMessage += "\r\n";
+            }
+        } else if (fullMessage.find("\r\n") == std::string::npos) {
             fullMessage += "\r\n";
         }
 
