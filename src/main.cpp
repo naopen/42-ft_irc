@@ -1,6 +1,7 @@
 #include "../include/Server.hpp"
 #include <cstring>
 #include <cctype>
+#include <climits>
 
 // ポート番号が有効な数値かチェックする関数
 bool isValidPort(const char* str) {
