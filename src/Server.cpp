@@ -454,10 +454,16 @@ void Server::displayServerStatus() {
             Client* client = it->second;
 
             statusStream << "• " << client->getFd() << ": ";
+            // ニックネーム情報を追加
             if (!client->getNickname().empty()) {
                 statusStream << client->getNickname();
             } else {
                 statusStream << "(no nickname)";
+            }
+            if (!client->getUsername().empty()) {
+                statusStream << " [" << client->getUsername() << "]";
+            } else {
+                statusStream << " [no username]";
             }
 
             // ステータス表示
