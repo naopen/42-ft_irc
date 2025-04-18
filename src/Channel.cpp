@@ -182,20 +182,26 @@ bool Channel::addClient(Client* client, const std::string& key) {
 }
 
 void Channel::removeClient(Client* client) {
+    // NULLチェック
+    if (!client) {
+        std::cout << "\033[1;31m[ERROR] Attempted to remove NULL client from channel " << _name << "\033[0m" << std::endl;
+        return;
+    }
+
     // クライアントをチャンネルから削除
     std::vector<Client*>::iterator it = std::find(_clients.begin(), _clients.end(), client);
     if (it != _clients.end()) {
+        std::string nickname = client->getNickname(); // 先にニックネームを取得
         _clients.erase(it);
-        client->removeChannel(_name);
 
-        std::cout << "\033[1;31m[CHANNEL] " << client->getNickname() << " left " << _name
+        std::cout << "\033[1;31m[CHANNEL] Client left " << _name
                   << " (total users: " << _clients.size() << ")\033[0m" << std::endl;
+
+        // オペレータからも削除（先に取得したニックネームを使用）
+        if (!nickname.empty()) {
+            removeOperator(nickname);
+        }
     }
-
-    // オペレータから削除
-    removeOperator(client->getNickname());
-
-    // チャンネルが空になった場合は後でサーバーがチャンネルを削除する
 }
 
 bool Channel::isClientInChannel(Client* client) const {

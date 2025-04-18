@@ -84,6 +84,7 @@ private:
     void            checkDisconnectedClients();
 	void            checkAndRemoveEmptyChannels();
     void            updatePollFds();
+    void            removePollFd(int fd);
 };
 
 #endif

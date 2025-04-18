@@ -83,8 +83,14 @@ void Server::run() {
         // pollfdの更新
         updatePollFds();
 
-        // poll関数でイベントを監視
-        int pollResult = poll(&_pollfds[0], _pollfds.size(), 1000); // 1秒のタイムアウト
+        // poll関数でイベントを監視（例外処理を追加）
+        int pollResult = 0;
+        try {
+            pollResult = poll(&_pollfds[0], _pollfds.size(), 1000); // 1秒のタイムアウト
+        } catch (const std::exception& e) {
+            std::cerr << "\033[1;31m[ERROR] Exception in poll(): " << e.what() << "\033[0m" << std::endl;
+            continue;
+        }
 
         if (pollResult < 0) {
             if (errno == EINTR) {
@@ -97,11 +103,25 @@ void Server::run() {
 
         // 各ファイルディスクリプタのイベントを処理
         for (size_t i = 0; i < _pollfds.size(); i++) {
+            // 安全チェック：無効なfdをスキップ
+            if (_pollfds[i].fd < 0) {
+                continue;
+            }
+
             if (_pollfds[i].revents & POLLIN) {
                 if (_pollfds[i].fd == _serverSocket) {
                     // 新しい接続を処理
                     handleNewConnection();
                 } else {
+                    // クライアントが存在するかチェック
+                    if (!getClientByFd(_pollfds[i].fd)) {
+                        std::cout << "\033[1;31m[WARNING] Skipping invalid client fd: " << _pollfds[i].fd << "\033[0m" << std::endl;
+                        // 無効なfdを_pollfdから削除
+                        removePollFd(_pollfds[i].fd);
+                        // インデックスを調整
+                        i--;
+                        continue;
+                    }
                     // クライアントからのデータを処理
                     handleClientData(i);
                 }
@@ -110,8 +130,19 @@ void Server::run() {
             // エラーや切断を処理
             if (_pollfds[i].revents & (POLLHUP | POLLERR)) {
                 if (_pollfds[i].fd != _serverSocket) {
+                    // クライアントが存在するかチェック
+                    if (!getClientByFd(_pollfds[i].fd)) {
+                        std::cout << "\033[1;31m[WARNING] Skipping invalid client fd: " << _pollfds[i].fd << "\033[0m" << std::endl;
+                        // 無効なfdを_pollfdから削除
+                        removePollFd(_pollfds[i].fd);
+                        // インデックスを調整
+                        i--;
+                        continue;
+                    }
                     // クライアントを削除
                     removeClient(_pollfds[i].fd);
+                    // インデックスを調整（削除したので）
+                    i--;
                 }
             }
         }
@@ -167,14 +198,14 @@ void Server::removeClient(int fd) {
         if (!client->getNickname().empty()) {
             std::cout << " (" << client->getNickname() << ")";
 
-            // ニックネームマップから削除 - 現在のニックネームを削除
+            // ニックネームマップから削除
             std::string nickname = client->getNickname();
             if (_nicknames.find(nickname) != _nicknames.end()) {
                 std::cout << "\n\033[1;35m[NICKMAP] Removing nickname: " << nickname << "\033[0m";
                 _nicknames.erase(nickname);
             }
 
-            // ニックネームマップの整合性チェック - このクライアントが別のニックネームでマップに残っていないか確認
+            // 古いニックネーム削除処理
             std::vector<std::string> nicksToRemove;
             for (std::map<std::string, Client*>::iterator it = _nicknames.begin(); it != _nicknames.end(); ++it) {
                 if (it->second == client) {
@@ -182,7 +213,6 @@ void Server::removeClient(int fd) {
                 }
             }
 
-            // 見つかった古いニックネームを削除
             for (std::vector<std::string>::iterator it = nicksToRemove.begin(); it != nicksToRemove.end(); ++it) {
                 std::cout << "\n\033[1;35m[NICKMAP] Removing stale nickname: " << *it << "\033[0m";
                 _nicknames.erase(*it);
@@ -190,29 +220,28 @@ void Server::removeClient(int fd) {
         }
         std::cout << "\033[0m" << std::endl;
 
-        // すべてのチャンネルからクライアントを削除
+        // チャンネルからクライアントを削除（クライアント削除前にコピー）
         std::vector<std::string> channels = client->getChannels();
         for (std::vector<std::string>::iterator it = channels.begin(); it != channels.end(); ++it) {
             Channel* channel = getChannel(*it);
             if (channel) {
                 std::cout << "\033[1;33m[CHANNEL] Removing client " << client->getNickname() << " from channel " << *it << "\033[0m" << std::endl;
                 channel->removeClient(client);
-
-                // チャンネルが空になった場合は削除
-                if (channel->getClientCount() == 0) {
-                    removeChannel(*it);
-                }
+                // ここではチャンネル削除を行わない
             }
         }
 
-        // クライアントを削除
+        // クライアントの削除
         delete client;
         _clients.erase(fd);
 
-        // 空のチャンネルを削除 - ステータス表示前に実行
+        // pollFDの削除
+        removePollFd(fd);
+
+        // チャンネル削除処理（一括で行う）
         checkAndRemoveEmptyChannels();
 
-        // 状態表示を更新
+        // 状態表示更新
         displayServerStatus();
     }
 }
@@ -736,7 +765,7 @@ void Server::checkDisconnectedClients() {
 void Server::checkAndRemoveEmptyChannels() {
     std::vector<std::string> channelsToRemove;
 
-    // 空のチャンネルを見つける
+    // 最初のパス：削除するチャンネルを特定する
     for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
         Channel* channel = it->second;
         std::vector<Client*> clients = channel->getClients();
@@ -751,15 +780,7 @@ void Server::checkAndRemoveEmptyChannels() {
 
             for (std::vector<Client*>::iterator cit = clients.begin(); cit != clients.end(); ++cit) {
                 // クライアントが有効かどうかをチェック（_clientsマップに存在するか）
-                bool clientExists = false;
-                for (std::map<int, Client*>::iterator clientIt = _clients.begin(); clientIt != _clients.end(); ++clientIt) {
-                    if (clientIt->second == *cit) {
-                        clientExists = true;
-                        break;
-                    }
-                }
-
-                if (clientExists) {
+                if (*cit != NULL && getClientByFd((*cit)->getFd()) != NULL) {
                     validClientsExist = true;
                     break;
                 }
@@ -774,11 +795,22 @@ void Server::checkAndRemoveEmptyChannels() {
         }
     }
 
-    // 空のチャンネルを削除
+    // 第二パス：特定したチャンネルを安全に削除する
     for (std::vector<std::string>::iterator it = channelsToRemove.begin(); it != channelsToRemove.end(); ++it) {
         std::string channelName = *it;
         std::cout << "\033[1;33m[CLEANUP] Removing empty channel: " << channelName << "\033[0m" << std::endl;
-        removeChannel(channelName);
+
+        // マップ内にまだチャンネルが存在するかどうかをチェック
+        std::map<std::string, Channel*>::iterator channelIt = _channels.find(channelName);
+        if (channelIt != _channels.end()) {
+            Channel* channel = channelIt->second;
+
+            // マップから先に削除し、それからチャンネルオブジェクトを削除
+            _channels.erase(channelIt);
+
+            std::cout << "\033[1;33m[-] Channel removed: " << channelName << "\033[0m" << std::endl;
+            delete channel;
+        }
     }
 }
 
@@ -808,5 +840,15 @@ void Server::updatePollFds() {
     if (_pollfds.size() != lastPollFDCount) {
         std::cout << "\033[1;36m[SERVER] Poll array updated: " << _pollfds.size() << " file descriptors monitored\033[0m" << std::endl;
         lastPollFDCount = _pollfds.size();
+    }
+}
+
+void Server::removePollFd(int fd) {
+    for (std::vector<struct pollfd>::iterator it = _pollfds.begin(); it != _pollfds.end(); ++it) {
+        if (it->fd == fd) {
+            _pollfds.erase(it);
+            std::cout << "\033[1;36m[SERVER] Removed fd " << fd << " from poll array\033[0m" << std::endl;
+            break;
+        }
     }
 }
