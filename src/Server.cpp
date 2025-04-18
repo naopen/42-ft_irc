@@ -69,6 +69,9 @@ void Server::run() {
              _nicknames.size() != lastNicknameCount) &&
              (currentTime - lastDisplayTime >= 1)))
         {
+            // 空のチャンネルをチェックして削除（ステータス表示前に）
+            checkAndRemoveEmptyChannels();
+
             displayServerStatus();
             // 現在の状態を保存
             lastClientCount = _clients.size();
@@ -115,7 +118,8 @@ void Server::run() {
 
         // 切断されたクライアントをチェック
         checkDisconnectedClients();
-		// 空のチャンネルをチェックして削除
+
+        // 空のチャンネルをチェックして削除
         checkAndRemoveEmptyChannels();
     }
 }
@@ -205,12 +209,12 @@ void Server::removeClient(int fd) {
         delete client;
         _clients.erase(fd);
 
+        // 空のチャンネルを削除 - ステータス表示前に実行
+        checkAndRemoveEmptyChannels();
+
         // 状態表示を更新
         displayServerStatus();
     }
-
-	// 空のチャンネルをチェックして削除
-    checkAndRemoveEmptyChannels();
 }
 
 void Server::removeClient(const std::string& nickname) {
@@ -505,7 +509,10 @@ void Server::displayServerStatus() {
              it != _channels.end() && count < maxChannels; ++it, ++count) {
             Channel* channel = it->second;
 
-            statusStream << "• " << channel->getName() << " (" << channel->getClientCount() << " users)";
+            // クライアント数をリアルタイムに取得
+            size_t clientCount = channel->getClientCount();
+
+            statusStream << "• " << channel->getName() << " (" << clientCount << " users)";
 
             // オペレーター表示（最大3人）
             std::vector<Client*> clients = channel->getClients();
@@ -732,8 +739,38 @@ void Server::checkAndRemoveEmptyChannels() {
     // 空のチャンネルを見つける
     for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
         Channel* channel = it->second;
-        if (channel->getClientCount() == 0) {
+        std::vector<Client*> clients = channel->getClients();
+
+        // クライアント数が0の場合は削除対象
+        if (clients.empty()) {
             channelsToRemove.push_back(it->first);
+            std::cout << "\033[1;33m[CLEANUP] Marking empty channel for removal: " << it->first << "\033[0m" << std::endl;
+        } else {
+            // クライアントが実際に有効かどうかをチェック
+            bool validClientsExist = false;
+
+            for (std::vector<Client*>::iterator cit = clients.begin(); cit != clients.end(); ++cit) {
+                // クライアントが有効かどうかをチェック（_clientsマップに存在するか）
+                bool clientExists = false;
+                for (std::map<int, Client*>::iterator clientIt = _clients.begin(); clientIt != _clients.end(); ++clientIt) {
+                    if (clientIt->second == *cit) {
+                        clientExists = true;
+                        break;
+                    }
+                }
+
+                if (clientExists) {
+                    validClientsExist = true;
+                    break;
+                }
+            }
+
+            // 有効なクライアントが一人もいない場合も削除対象
+            if (!validClientsExist) {
+                channelsToRemove.push_back(it->first);
+                std::cout << "\033[1;33m[CLEANUP] Marking channel with invalid clients for removal: " << it->first
+                         << " (client count: " << clients.size() << ")\033[0m" << std::endl;
+            }
         }
     }
 
