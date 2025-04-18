@@ -52,25 +52,29 @@ void Server::setup() {
 void Server::run() {
     _running = true;
 
-    // 初期状態を表示
-    displayServerStatus();
-
     // 状態変化を追跡するための変数を初期化
     size_t lastClientCount = _clients.size();
     size_t lastChannelCount = _channels.size();
     size_t lastNicknameCount = _nicknames.size();
+    time_t lastDisplayTime = time(NULL); // 最後に表示した時間を記録
 
     while (_running) {
+        // 現在の時間を取得
+        time_t currentTime = time(NULL);
+
         // クライアント数、チャンネル数、ニックネーム数のいずれかが変わった場合にのみステータスを更新
-        if (_clients.size() != lastClientCount ||
-            _channels.size() != lastChannelCount ||
-            _nicknames.size() != lastNicknameCount)
+        // かつ、最後の表示から少なくとも1秒経過している場合のみ表示する
+        if (((_clients.size() != lastClientCount ||
+             _channels.size() != lastChannelCount ||
+             _nicknames.size() != lastNicknameCount) &&
+             (currentTime - lastDisplayTime >= 1)))
         {
             displayServerStatus();
             // 現在の状態を保存
             lastClientCount = _clients.size();
             lastChannelCount = _channels.size();
             lastNicknameCount = _nicknames.size();
+            lastDisplayTime = currentTime;
         }
 
         // pollfdの更新
