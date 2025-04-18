@@ -115,6 +115,8 @@ void Server::run() {
 
         // 切断されたクライアントをチェック
         checkDisconnectedClients();
+		// 空のチャンネルをチェックして削除
+        checkAndRemoveEmptyChannels();
     }
 }
 
@@ -206,6 +208,9 @@ void Server::removeClient(int fd) {
         // 状態表示を更新
         displayServerStatus();
     }
+
+	// 空のチャンネルをチェックして削除
+    checkAndRemoveEmptyChannels();
 }
 
 void Server::removeClient(const std::string& nickname) {
@@ -719,6 +724,25 @@ void Server::handleClientData(size_t i) {
 void Server::checkDisconnectedClients() {
     // タイムアウトしたクライアントを削除
     // （この実装では行わない）
+}
+
+void Server::checkAndRemoveEmptyChannels() {
+    std::vector<std::string> channelsToRemove;
+
+    // 空のチャンネルを見つける
+    for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it) {
+        Channel* channel = it->second;
+        if (channel->getClientCount() == 0) {
+            channelsToRemove.push_back(it->first);
+        }
+    }
+
+    // 空のチャンネルを削除
+    for (std::vector<std::string>::iterator it = channelsToRemove.begin(); it != channelsToRemove.end(); ++it) {
+        std::string channelName = *it;
+        std::cout << "\033[1;33m[CLEANUP] Removing empty channel: " << channelName << "\033[0m" << std::endl;
+        removeChannel(channelName);
+    }
 }
 
 void Server::updatePollFds() {

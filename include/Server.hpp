@@ -82,6 +82,7 @@ private:
     void            handleNewConnection();
     void            handleClientData(size_t i);
     void            checkDisconnectedClients();
+	void            checkAndRemoveEmptyChannels();
     void            updatePollFds();
 };
 
