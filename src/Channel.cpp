@@ -329,6 +329,23 @@ bool Channel::applyMode(char mode, bool set, const std::string& param, Client* c
 
         case 'o': // オペレータ権限
             if (!param.empty()) {
+                // ユーザーがチャンネルに参加しているか確認
+                if (!isClientInChannel(param)) {
+                    std::cout << "\033[1;31m[MODE] " << clientNick << " tried to set " << _name
+                              << " mode " << (set ? "+" : "-") << "o for " << param
+                              << " but user is not in channel\033[0m" << std::endl;
+
+                    // クライアントがnullでない場合にエラーメッセージを送信
+                    if (client) {
+                        std::string errorMsg = ":" + std::string(IRC_SERVER_NAME) + " 441 " +
+                                               clientNick + " " + param + " " + _name +
+                                               " :They aren't on that channel";
+                        client->sendMessage(errorMsg);
+                    }
+
+                    return false;
+                }
+
                 if (set) {
                     addOperator(param);
                     std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
