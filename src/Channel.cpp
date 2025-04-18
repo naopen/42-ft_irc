@@ -344,7 +344,27 @@ bool Channel::applyMode(char mode, bool set, const std::string& param, Client* c
 
         case 'l': // ユーザー数制限
             if (set && !param.empty()) {
-                setUserLimit(std::atoi(param.c_str()));
+                // 数値チェック：すべて数字で、かつ0より大きいことを確認
+                bool isValidNumber = true;
+                for (size_t i = 0; i < param.length(); i++) {
+                    if (!isdigit(param[i])) {
+                        isValidNumber = false;
+                        break;
+                    }
+                }
+
+                int limit = 0;
+                if (isValidNumber) {
+                    limit = std::atoi(param.c_str());
+                }
+
+                if (!isValidNumber || limit <= 0) {
+                    std::cout << "\033[1;31m[ERROR] Invalid user limit: " << param
+                              << " (must be a positive number)\033[0m" << std::endl;
+                    return false;
+                }
+
+                setUserLimit(limit);
                 std::cout << "\033[1;33m[MODE] " << clientNick << " set " << _name
                           << " mode +l " << param << "\033[0m" << std::endl;
                 return true;
