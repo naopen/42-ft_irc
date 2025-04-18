@@ -277,6 +277,7 @@ void ModeCommand::execute() {
 
         bool isAddMode = true;
         size_t paramIndex = 2;
+        bool hadModeFlag = false; // モードフラグが指定されたかどうかを追跡
 
         // モード文字列を処理
         for (size_t i = 0; i < modeString.length(); i++) {
@@ -287,6 +288,7 @@ void ModeCommand::execute() {
             } else if (c == '-') {
                 isAddMode = false;
             } else {
+                hadModeFlag = true; // モードフラグが指定された
                 std::string param = "";
 
                 // パラメータが必要なモードの場合
@@ -317,6 +319,11 @@ void ModeCommand::execute() {
                 }
             }
         }
+
+        // モードフラグが指定されていない場合（+や-だけの場合）はエラーを返す
+        if (!hadModeFlag && modeString.find_first_of("+-") != std::string::npos) {
+            _client->sendNumericReply(ERR_UNKNOWNMODE, modeString + " :No mode flags specified");
+        }
     }
     // ユーザーモード（こちらは簡易実装）
     else {
@@ -333,6 +340,29 @@ void ModeCommand::execute() {
                 modes += "o";
             }
             _client->sendNumericReply(RPL_UMODEIS, modes);
+            return;
+        }
+
+        std::string modeString = _params[1];
+
+        // モード文字列が空の場合はエラー
+        if (modeString.empty()) {
+            return;
+        }
+
+        bool hadModeFlag = false; // モードフラグが指定されたかどうかを追跡
+
+        // '+' や '-' だけの場合のチェック
+        for (size_t i = 0; i < modeString.length(); i++) {
+            if (modeString[i] != '+' && modeString[i] != '-') {
+                hadModeFlag = true;
+                break;
+            }
+        }
+
+        // モードフラグが指定されていない場合はエラー
+        if (!hadModeFlag) {
+            _client->sendNumericReply(ERR_UMODEUNKNOWNFLAG, ":No mode flags specified");
             return;
         }
 
