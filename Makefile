@@ -19,7 +19,10 @@ SRCS = $(SRC_DIR)/main.cpp \
        $(COMMANDS_DIR)/ChannelCommands.cpp \
        $(COMMANDS_DIR)/MessageCommands.cpp \
        $(COMMANDS_DIR)/OperCommands.cpp \
-       $(COMMANDS_DIR)/UtilityCommands.cpp
+       $(COMMANDS_DIR)/UtilityCommands.cpp \
+       $(SRC_DIR)/bonus/Bot.cpp \
+       $(SRC_DIR)/bonus/BotManager.cpp \
+       $(SRC_DIR)/bonus/JankenBot.cpp
 
 # Generate object file paths from source paths, maintaining structure
 OBJS = $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(SRCS))

@@ -1,5 +1,6 @@
 #include "../../include/Command.hpp"
 #include "../../include/Server.hpp"
+#include "../../include/bonus/BotManager.hpp"
 
 // JOIN コマンド
 JoinCommand::JoinCommand(Server* server, Client* client, const std::vector<std::string>& params)
@@ -98,6 +99,12 @@ void JoinCommand::execute() {
             } else {
                 // 参加メッセージをブロードキャスト
                 std::string joinMessage = ":" + _client->getPrefix() + " JOIN " + channelName;
+                
+                // Botに通知
+                BotManager* botManager = _server->getBotManager();
+                if (botManager) {
+                    botManager->handleJoin(_client, channelName);
+                }
                 channel->broadcastMessage(joinMessage);
 
                 // トピックのレスポンス

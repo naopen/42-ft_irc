@@ -1,5 +1,6 @@
 #include "../../include/Command.hpp"
 #include "../../include/Server.hpp"
+#include "../../include/bonus/BotManager.hpp"
 
 // PRIVMSG コマンド
 PrivmsgCommand::PrivmsgCommand(Server* server, Client* client, const std::vector<std::string>& params)
@@ -63,9 +64,23 @@ void PrivmsgCommand::execute() {
 
             // クライアント自身以外の全メンバーにメッセージを送信
             channel->broadcastMessage(formattedMessage, _client);
+            
+            // Botにチャンネルメッセージを通知
+            BotManager* botManager = _server->getBotManager();
+            if (botManager) {
+                botManager->routeChannelMessage(_client, currentTarget, message);
+            }
         }
         // ユーザーへのメッセージ
         else {
+            // Botへのメッセージか確認
+            BotManager* botManager = _server->getBotManager();
+            if (botManager && botManager->isBotNickname(currentTarget)) {
+                // Botにメッセージをルーティング
+                botManager->routePrivateMessage(_client, currentTarget, message);
+                continue;
+            }
+            
             // ユーザーが存在するか確認
             Client* targetClient = _server->getClientByNickname(currentTarget);
             if (!targetClient) {

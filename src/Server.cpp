@@ -1,8 +1,9 @@
 #include "../include/Server.hpp"
 #include "../include/Command.hpp"
+#include "../include/bonus/BotManager.hpp"
 
 Server::Server(int port, const std::string& password)
-    : _serverSocket(-1), _password(password), _port(port), _running(false), _commandFactory(NULL)
+    : _serverSocket(-1), _password(password), _port(port), _running(false), _commandFactory(NULL), _botManager(NULL)
 {
     char hostname[1024];
     if (gethostname(hostname, sizeof(hostname)) == 0) {
@@ -13,6 +14,7 @@ Server::Server(int port, const std::string& password)
 
     _startTime = time(NULL);
     _commandFactory = new CommandFactory(this);
+    _botManager = new BotManager(this);
 }
 
 Server::~Server() {
@@ -35,6 +37,12 @@ Server::~Server() {
         delete _commandFactory;
         _commandFactory = NULL;
     }
+    
+    // BotManagerの解放
+    if (_botManager) {
+        delete _botManager;
+        _botManager = NULL;
+    }
 }
 
 void Server::setup() {
@@ -42,6 +50,11 @@ void Server::setup() {
 
     // SIGPIPEを無視
     signal(SIGPIPE, SIG_IGN);
+    
+    // Botを初期化
+    if (_botManager) {
+        _botManager->initializeBots();
+    }
 
     std::cout << "\033[1;32m[SERVER] ft_irc server listening on port " << _port << "\033[0m" << std::endl;
 
@@ -851,4 +864,8 @@ void Server::removePollFd(int fd) {
             break;
         }
     }
+}
+
+BotManager* Server::getBotManager() {
+    return _botManager;
 }

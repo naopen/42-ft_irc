@@ -9,6 +9,7 @@
 
 class Command;
 class CommandFactory;
+class BotManager;
 
 class NickCommand;
 
@@ -24,6 +25,7 @@ private:
     std::vector<pollfd>                 _pollfds;            // poll用のfd配列
     bool                                _running;            // サーバー実行中フラグ
     CommandFactory*                     _commandFactory;     // コマンドファクトリー
+    BotManager*                         _botManager;         // Bot管理
     time_t                              _startTime;          // サーバー起動時間
     bool                                _detailedView;       // 詳細表示モード
 
@@ -56,6 +58,9 @@ public:
     // メッセージ処理
     void            processClientMessage(int fd);
     void            executeCommand(Client* client, const std::string& message);
+    
+    // Bot管理
+    BotManager*     getBotManager();
 
     // 接続管理
     bool            authenticateClient(Client* client, const std::string& password);
