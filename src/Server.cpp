@@ -9,6 +9,10 @@ Server::Server(int port, const std::string& password)
     char hostname[1024];
     if (gethostname(hostname, sizeof(hostname)) == 0) {
         _hostname = hostname;
+        // macOSのgethostnameが短い名前を返す場合、.localを追加
+        if (_hostname.find('.') == std::string::npos) {
+            _hostname += ".local";
+        }
     } else {
         _hostname = "localhost";
     }

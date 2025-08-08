@@ -22,14 +22,15 @@ void DCCSendCommand::execute() {
     }
     
     // パラメータチェック: DCC SEND <nickname> <filepath>
-    if (_params.size() < 3) {
+    // 注: Command.cppでサブコマンド(SEND)は既に除外されているので、_paramsには[nickname, filepath]のみ
+    if (_params.size() < 2) {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                            " :Usage: DCC SEND <nickname> <filepath>\r\n");
         return;
     }
     
-    std::string targetNick = _params[1];
-    std::string filepath = _params[2];
+    std::string targetNick = _params[0];
+    std::string filepath = _params[1];
     
     // 受信者の確認
     Client* receiver = _server->getClientByNickname(targetNick);
@@ -148,14 +149,15 @@ void DCCGetCommand::execute() {
     }
     
     // パラメータチェック: DCC GET <transferId> または DCC ACCEPT <transferId>
-    if (_params.size() < 2) {
+    // 注: Command.cppでサブコマンド(GET/ACCEPT)は既に除外されているので、_paramsには[transferId]のみ
+    if (_params.size() < 1) {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                            " :Usage: DCC GET <transferId> or DCC ACCEPT <transferId>\r\n");
         return;
     }
     
     std::string transferId;
-    if (!parseTransferInfo(_params[1], transferId)) {
+    if (!parseTransferInfo(_params[0], transferId)) {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                            " :Invalid transfer ID\r\n");
         return;
@@ -197,13 +199,14 @@ void DCCRejectCommand::execute() {
         return;
     }
     
-    if (_params.size() < 2) {
+    // 注: Command.cppでサブコマンド(REJECT)は既に除外されているので、_paramsには[transferId]のみ
+    if (_params.size() < 1) {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                            " :Usage: DCC REJECT <transferId>\r\n");
         return;
     }
     
-    std::string transferId = _params[1];
+    std::string transferId = _params[0];
     
     DCCManager* dccManager = _server->getDCCManager();
     if (!dccManager) {
@@ -284,13 +287,14 @@ void DCCCancelCommand::execute() {
         return;
     }
     
-    if (_params.size() < 2) {
+    // 注: Command.cppでサブコマンド(CANCEL)は既に除外されているので、_paramsには[transferId]のみ
+    if (_params.size() < 1) {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                            " :Usage: DCC CANCEL <transferId>\r\n");
         return;
     }
     
-    std::string transferId = _params[1];
+    std::string transferId = _params[0];
     
     DCCManager* dccManager = _server->getDCCManager();
     if (!dccManager) {
