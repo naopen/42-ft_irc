@@ -20,8 +20,14 @@ DCCTransfer::DCCTransfer(Client* sender, Client* receiver, const std::string& fi
     _lastActivity = _startTime;
     _buffer = new char[DCC_BUFFER_SIZE];
     
-    // ファイルパスの設定（セキュリティのため、転送ディレクトリに制限）
-    _filepath = "./dcc_transfers/" + _filename;
+    // ファイルパスの設定
+    if (_type == DCC_SEND) {
+        // 送信側：ファイル名が与えられるので、パスを構築
+        _filepath = "./dcc_transfers/" + _filename;
+    } else {
+        // 受信側：受信ディレクトリに保存
+        _filepath = "./dcc_transfers/received/" + _filename;
+    }
 }
 
 DCCTransfer::~DCCTransfer() {
@@ -34,17 +40,21 @@ DCCTransfer::~DCCTransfer() {
 
 bool DCCTransfer::initializeSend() {
     if (_type != DCC_SEND) {
+        std::cout << "[DCC] initializeSend: Wrong type (not DCC_SEND)" << std::endl;
         return false;
     }
     
     // ファイルの存在確認
+    std::cout << "[DCC] Checking file: " << _filepath << std::endl;
     if (!validateFilepath(_filepath)) {
+        std::cout << "[DCC] File validation failed: " << _filepath << std::endl;
         _status = DCC_FAILED;
         return false;
     }
     
     // 送信用ファイルを開く
     if (!openSendFile()) {
+        std::cout << "[DCC] Failed to open send file: " << _filepath << std::endl;
         _status = DCC_FAILED;
         return false;
     }
@@ -52,6 +62,7 @@ bool DCCTransfer::initializeSend() {
     // リスニングソケットの作成
     _listenSocket = createListenSocket();
     if (_listenSocket < 0) {
+        std::cout << "[DCC] Failed to create listen socket" << std::endl;
         closeSendFile();
         _status = DCC_FAILED;
         return false;
@@ -59,20 +70,20 @@ bool DCCTransfer::initializeSend() {
     
     // 送信者IPの取得
     _senderIP = getLocalIP();
+    std::cout << "[DCC] Send initialized - IP: " << _senderIP << ", Port: " << _port << std::endl;
     
     return true;
 }
 
 bool DCCTransfer::initializeReceive(const std::string& ip, int port) {
-    if (_type != DCC_GET) {
-        return false;
-    }
-    
     _senderIP = ip;
     _port = port;
     
+    std::cout << "[DCC] Receive init - Connecting to " << _senderIP << ":" << _port << std::endl;
+    
     // 受信用ファイルを開く
     if (!openReceiveFile()) {
+        std::cout << "[DCC] Failed to open receive file: " << _filepath << std::endl;
         _status = DCC_FAILED;
         return false;
     }
@@ -80,6 +91,7 @@ bool DCCTransfer::initializeReceive(const std::string& ip, int port) {
     // 送信者に接続
     _dataSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (_dataSocket < 0) {
+        std::cout << "[DCC] Failed to create socket" << std::endl;
         closeReceiveFile();
         _status = DCC_FAILED;
         return false;
@@ -91,7 +103,9 @@ bool DCCTransfer::initializeReceive(const std::string& ip, int port) {
     addr.sin_port = htons(_port);
     addr.sin_addr.s_addr = inet_addr(_senderIP.c_str());
     
+    std::cout << "[DCC] Connecting to " << _senderIP << ":" << _port << "..." << std::endl;
     if (connect(_dataSocket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        std::cout << "[DCC] Connection failed: " << strerror(errno) << std::endl;
         close(_dataSocket);
         _dataSocket = -1;
         closeReceiveFile();
@@ -101,12 +115,14 @@ bool DCCTransfer::initializeReceive(const std::string& ip, int port) {
     
     setSocketNonBlocking(_dataSocket);
     _status = DCC_ACTIVE;
+    std::cout << "[DCC] Connection established successfully" << std::endl;
     
     return true;
 }
 
 bool DCCTransfer::acceptConnection() {
     if (_listenSocket < 0 || _type != DCC_SEND) {
+        std::cout << "[DCC] acceptConnection: Invalid state (listenSocket=" << _listenSocket << ", type=" << _type << ")" << std::endl;
         return false;
     }
     
@@ -116,12 +132,15 @@ bool DCCTransfer::acceptConnection() {
     _dataSocket = accept(_listenSocket, (struct sockaddr*)&clientAddr, &clientLen);
     if (_dataSocket < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            std::cout << "[DCC] Accept failed: " << strerror(errno) << std::endl;
             _status = DCC_FAILED;
             return false;
         }
-        return false; // まだ接続がない
+        // まだ接続がない（ノンブロッキング）
+        return false;
     }
     
+    std::cout << "[DCC] Connection accepted on socket " << _dataSocket << std::endl;
     setSocketNonBlocking(_dataSocket);
     
     // リスニングソケットを閉じる
@@ -130,16 +149,19 @@ bool DCCTransfer::acceptConnection() {
     
     _status = DCC_ACTIVE;
     updateLastActivity();
+    std::cout << "[DCC] Transfer is now ACTIVE" << std::endl;
     
     return true;
 }
 
 bool DCCTransfer::sendData() {
     if (_status != DCC_ACTIVE || !_sendFile || _dataSocket < 0) {
+        std::cout << "[DCC] sendData: Invalid state (status=" << _status << ", sendFile=" << (_sendFile ? "OK" : "NULL") << ", dataSocket=" << _dataSocket << ")" << std::endl;
         return false;
     }
     
     if (_sendFile->eof() || _bytesTransferred >= _filesize) {
+        std::cout << "[DCC] Transfer complete: " << _bytesTransferred << "/" << _filesize << " bytes" << std::endl;
         _status = DCC_COMPLETED;
         return true;
     }
@@ -155,10 +177,12 @@ bool DCCTransfer::sendData() {
             updateLastActivity();
             
             if (_bytesTransferred >= _filesize) {
+                std::cout << "[DCC] Transfer complete: " << _bytesTransferred << "/" << _filesize << " bytes" << std::endl;
                 _status = DCC_COMPLETED;
             }
             return true;
         } else if (bytesSent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            std::cout << "[DCC] Send error: " << strerror(errno) << std::endl;
             _status = DCC_FAILED;
             return false;
         }
@@ -210,11 +234,14 @@ bool DCCTransfer::receiveData() {
 
 bool DCCTransfer::processTransfer() {
     if (_status == DCC_PENDING && _type == DCC_SEND) {
+        // 送信側：接続を待つ
         return acceptConnection();
     } else if (_status == DCC_ACTIVE) {
         if (_type == DCC_SEND) {
+            // 送信側：データを送信
             return sendData();
         } else {
+            // 受信側：データを受信
             return receiveData();
         }
     }
@@ -376,9 +403,8 @@ bool DCCTransfer::openSendFile() {
 bool DCCTransfer::openReceiveFile() {
     // 転送ディレクトリの作成
     system("mkdir -p ./dcc_transfers/received/");
-    std::string receivePath = "./dcc_transfers/received/" + _filename;
     
-    _recvFile = new std::ofstream(receivePath.c_str(), std::ios::binary);
+    _recvFile = new std::ofstream(_filepath.c_str(), std::ios::binary);
     if (!_recvFile->is_open()) {
         delete _recvFile;
         _recvFile = NULL;
@@ -412,18 +438,22 @@ std::string DCCTransfer::generateTransferId() const {
 bool DCCTransfer::validateFilepath(const std::string& path) const {
     struct stat st;
     if (stat(path.c_str(), &st) != 0) {
+        std::cout << "[DCC] File not found: " << path << " (errno: " << strerror(errno) << ")" << std::endl;
         return false;
     }
     
     // ファイルが通常ファイルであることを確認
     if (!S_ISREG(st.st_mode)) {
+        std::cout << "[DCC] Not a regular file: " << path << std::endl;
         return false;
     }
     
     // ファイルサイズの確認
     if ((unsigned long)st.st_size != _filesize) {
+        std::cout << "[DCC] File size mismatch: expected " << _filesize << ", got " << st.st_size << std::endl;
         return false;
     }
     
+    std::cout << "[DCC] File validated successfully: " << path << " (size: " << st.st_size << ")" << std::endl;
     return true;
 }

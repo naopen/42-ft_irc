@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 
 DCCManager::DCCManager(Server* server) 
     : _server(server), _nextPort(MIN_DCC_PORT) {
@@ -55,26 +56,55 @@ std::string DCCManager::createSendTransfer(Client* sender, Client* receiver,
 }
 
 bool DCCManager::acceptTransfer(Client* client, const std::string& transferId) {
-    DCCTransfer* transfer = getTransfer(transferId);
-    if (!transfer) {
+    DCCTransfer* senderTransfer = getTransfer(transferId);
+    if (!senderTransfer) {
         return false;
     }
     
     // 権限チェック
-    if (transfer->getReceiver() != client) {
+    if (senderTransfer->getReceiver() != client) {
         return false;
     }
     
     // ステータスチェック
-    if (transfer->getStatus() != DCC_PENDING) {
+    if (senderTransfer->getStatus() != DCC_PENDING) {
         return false;
     }
     
-    // 転送を受け入れる
-    transfer->setStatus(DCC_ACTIVE);
+    // 送信側のIPとポートを取得
+    std::string senderIP = senderTransfer->getSenderIP();
+    int senderPort = senderTransfer->getPort();
+    
+    // 受信側用の新しいDCC転送オブジェクトを作成
+    DCCTransfer* receiverTransfer = new DCCTransfer(
+        senderTransfer->getSender(), 
+        client, 
+        senderTransfer->getFilename(), 
+        senderTransfer->getFilesize(), 
+        DCC_GET
+    );
+    
+    // 受信側IDを設定（送信側と同じID + "_recv"）
+    std::string receiverId = transferId + "_recv";
+    
+    // 受信側の接続を初期化
+    if (!receiverTransfer->initializeReceive(senderIP, senderPort)) {
+        delete receiverTransfer;
+        return false;
+    }
+    
+    // 受信側転送を追加
+    _transfers[receiverId] = receiverTransfer;
+    if (receiverTransfer->getDataSocket() >= 0) {
+        addTransferSocket(receiverTransfer->getDataSocket(), receiverTransfer);
+    }
+    
+    // 両方の転送をアクティブに
+    senderTransfer->setStatus(DCC_ACTIVE);
+    receiverTransfer->setStatus(DCC_ACTIVE);
     
     // 送信者に通知
-    notifyTransferAccepted(transfer);
+    notifyTransferAccepted(senderTransfer);
     
     return true;
 }
@@ -337,10 +367,13 @@ void DCCManager::notifySendRequest(DCCTransfer* transfer) {
     if (!receiver || !sender) return;
     
     // DCC SEND通知をCTCPメッセージとして送信
+    // IPアドレスを長整数に変換（ホストバイトオーダー）
+    unsigned long ipAddr = ntohl(inet_addr(transfer->getSenderIP().c_str()));
+    
     std::stringstream ss;
     ss << ":" << sender->getPrefix() << " PRIVMSG " << receiver->getNickname()
        << " :\001DCC SEND " << transfer->getFilename() 
-       << " " << inet_addr(transfer->getSenderIP().c_str())
+       << " " << ipAddr
        << " " << transfer->getPort()
        << " " << transfer->getFilesize()
        << " " << transfer->getId() << "\001\r\n";
