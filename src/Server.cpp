@@ -1,9 +1,10 @@
 #include "../include/Server.hpp"
 #include "../include/Command.hpp"
 #include "../include/bonus/BotManager.hpp"
+#include "../include/DCCManager.hpp"
 
 Server::Server(int port, const std::string& password)
-    : _serverSocket(-1), _password(password), _port(port), _running(false), _commandFactory(NULL), _botManager(NULL)
+    : _serverSocket(-1), _password(password), _port(port), _running(false), _commandFactory(NULL), _botManager(NULL), _dccManager(NULL)
 {
     char hostname[1024];
     if (gethostname(hostname, sizeof(hostname)) == 0) {
@@ -15,6 +16,7 @@ Server::Server(int port, const std::string& password)
     _startTime = time(NULL);
     _commandFactory = new CommandFactory(this);
     _botManager = new BotManager(this);
+    _dccManager = new DCCManager(this);
 }
 
 Server::~Server() {
@@ -42,6 +44,12 @@ Server::~Server() {
     if (_botManager) {
         delete _botManager;
         _botManager = NULL;
+    }
+    
+    // DCCManagerの解放
+    if (_dccManager) {
+        delete _dccManager;
+        _dccManager = NULL;
     }
 }
 
@@ -165,6 +173,11 @@ void Server::run() {
 
         // 空のチャンネルをチェックして削除
         checkAndRemoveEmptyChannels();
+        
+        // DCC転送を処理
+        if (_dccManager) {
+            _dccManager->processTransfers();
+        }
     }
 }
 
@@ -233,6 +246,11 @@ void Server::removeClient(int fd) {
         }
         std::cout << "\033[0m" << std::endl;
 
+        // DCC転送をクリーンアップ
+        if (_dccManager) {
+            _dccManager->removeClientTransfers(client);
+        }
+        
         // チャンネルからクライアントを削除（クライアント削除前にコピー）
         std::vector<std::string> channels = client->getChannels();
         for (std::vector<std::string>::iterator it = channels.begin(); it != channels.end(); ++it) {
@@ -868,4 +886,8 @@ void Server::removePollFd(int fd) {
 
 BotManager* Server::getBotManager() {
     return _botManager;
+}
+
+DCCManager* Server::getDCCManager() {
+    return _dccManager;
 }

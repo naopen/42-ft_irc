@@ -15,11 +15,14 @@ SRCS = $(SRC_DIR)/main.cpp \
        $(SRC_DIR)/Command.cpp \
        $(SRC_DIR)/Parser.cpp \
        $(SRC_DIR)/Utils.cpp \
+       $(SRC_DIR)/DCCTransfer.cpp \
+       $(SRC_DIR)/DCCManager.cpp \
        $(COMMANDS_DIR)/AuthCommands.cpp \
        $(COMMANDS_DIR)/ChannelCommands.cpp \
        $(COMMANDS_DIR)/MessageCommands.cpp \
        $(COMMANDS_DIR)/OperCommands.cpp \
        $(COMMANDS_DIR)/UtilityCommands.cpp \
+       $(COMMANDS_DIR)/DCCCommands.cpp \
        $(SRC_DIR)/bonus/Bot.cpp \
        $(SRC_DIR)/bonus/BotManager.cpp \
        $(SRC_DIR)/bonus/JankenBot.cpp

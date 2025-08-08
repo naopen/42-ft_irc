@@ -1,5 +1,6 @@
 #include "../include/Command.hpp"
 #include "../include/Server.hpp"
+#include "../include/DCCCommand.hpp"
 
 // コマンドベースクラス
 Command::Command(Server* server, Client* client, const std::string& name, const std::vector<std::string>& params)
@@ -130,6 +131,35 @@ Command* CommandFactory::createCommand(Client* client, const std::string& messag
         return new WhoisCommand(_server, client, params);
     } else if (command == "CAP") {
         return new CapCommand(_server, client, params);
+    } else if (command == "DCC") {
+        // DCCサブコマンドの処理
+        if (params.empty()) {
+            client->sendMessage(":server NOTICE " + client->getNickname() + 
+                              " :Usage: DCC <SEND|GET|ACCEPT|REJECT|LIST|CANCEL|STATUS> ...\r\n");
+            return NULL;
+        }
+        
+        std::string subCommand = params[0];
+        // パラメータからサブコマンドを削除
+        std::vector<std::string> dccParams(params.begin() + 1, params.end());
+        
+        if (subCommand == "SEND") {
+            return new DCCSendCommand(_server, client, dccParams);
+        } else if (subCommand == "GET" || subCommand == "ACCEPT") {
+            return new DCCGetCommand(_server, client, dccParams);
+        } else if (subCommand == "REJECT") {
+            return new DCCRejectCommand(_server, client, dccParams);
+        } else if (subCommand == "LIST") {
+            return new DCCListCommand(_server, client, dccParams);
+        } else if (subCommand == "CANCEL") {
+            return new DCCCancelCommand(_server, client, dccParams);
+        } else if (subCommand == "STATUS") {
+            return new DCCStatusCommand(_server, client, dccParams);
+        } else {
+            client->sendMessage(":server NOTICE " + client->getNickname() + 
+                              " :Unknown DCC subcommand: " + subCommand + "\r\n");
+            return NULL;
+        }
     }
 
     // 未知のコマンド

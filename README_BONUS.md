@@ -90,9 +90,93 @@ public:
 };
 ```
 
-## FTP Server (Coming Soon)
+## DCC File Transfer (Direct Client-to-Client)
 
-FTPサーバー機能は現在開発中です。
+DCCファイル転送機能により、IRCクライアント間で直接ファイルを転送できます。
+
+### 使用方法
+
+#### 1. ファイル送信
+
+```
+DCC SEND <nickname> <filepath>
+```
+
+例:
+```
+DCC SEND Alice ./dcc_transfers/test_file.txt
+```
+
+#### 2. ファイル受信
+
+送信リクエストを受け取ったら、以下のコマンドで承認:
+
+```
+DCC GET <transferId>
+DCC ACCEPT <transferId>
+```
+
+または拒否:
+
+```
+DCC REJECT <transferId>
+```
+
+#### 3. 転送管理コマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `DCC LIST` | アクティブな転送の一覧表示 |
+| `DCC STATUS` | 転送統計情報を表示 |
+| `DCC CANCEL <transferId>` | 転送をキャンセル |
+
+### 機能特徴
+
+- **直接転送**: クライアント間で直接データを転送
+- **進捗表示**: 転送の進捗をリアルタイムで表示
+- **転送速度表示**: 転送速度をMB/s、KB/s単位で表示
+- **タイムアウト機能**: 5分間アクティビティがない場合は自動キャンセル
+- **ファイルサイズ制限**: 最大100MBまでのファイルをサポート
+- **同時転送制限**: 1クライアントあたり最大3つまで
+- **ポート管理**: 5000-5100のポート範囲で自動割り当て
+
+### セキュリティ
+
+- 転送ファイルは`./dcc_transfers/`ディレクトリに制限
+- 受信ファイルは`./dcc_transfers/received/`に保存
+- ファイルサイズ検証
+- パストラバーサル攻撃の防止
+
+### テスト例
+
+```bash
+# サーバー起動
+./ircserv 6667 password123
+
+# クライアント1（送信者）
+nc localhost 6667
+PASS password123
+NICK Alice
+USER alice 0 * :Alice User
+
+# クライアント2（受信者）
+nc localhost 6667  
+PASS password123
+NICK Bob
+USER bob 0 * :Bob User
+
+# AliceからBobにファイル送信
+# Alice:
+DCC SEND Bob ./dcc_transfers/test_file.txt
+
+# Bobに通知が届く
+# Bob:
+DCC LIST  # ペンディング転送を確認
+DCC ACCEPT <transferId>  # 転送を承認
+
+# 両方のクライアントで進捗を確認
+DCC STATUS
+```
 
 ## ビルド方法
 
@@ -145,7 +229,11 @@ PRIVMSG JankenBot :rock
   - [x] プライベートメッセージ対応
   - [x] チャンネルメッセージ対応
   - [x] インタラクティブな機能（じゃんけんゲーム）
-- [ ] FTPサーバー（開発中）
+- [x] ファイル転送機能 (DCC)
+  - [x] DCC SEND/GETコマンド
+  - [x] ファイル転送の進捗表示
+  - [x] 転送管理機能
+  - [x] セキュリティ対策
 
 ## トラブルシューティング
 

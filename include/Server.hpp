@@ -10,6 +10,7 @@
 class Command;
 class CommandFactory;
 class BotManager;
+class DCCManager;
 
 class NickCommand;
 
@@ -26,6 +27,7 @@ private:
     bool                                _running;            // サーバー実行中フラグ
     CommandFactory*                     _commandFactory;     // コマンドファクトリー
     BotManager*                         _botManager;         // Bot管理
+    DCCManager*                         _dccManager;         // DCC転送管理
     time_t                              _startTime;          // サーバー起動時間
     bool                                _detailedView;       // 詳細表示モード
 
@@ -61,6 +63,9 @@ public:
     
     // Bot管理
     BotManager*     getBotManager();
+    
+    // DCC管理
+    DCCManager*     getDCCManager();
 
     // 接続管理
     bool            authenticateClient(Client* client, const std::string& password);
