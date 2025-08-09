@@ -13,6 +13,7 @@
 #ifndef BOTMANAGER_HPP
 # define BOTMANAGER_HPP
 
+# include <string>
 # include <vector>
 # include <map>
 
@@ -39,25 +40,25 @@ public:
     void        removeBot(const std::string& nickname);
     Bot*        getBot(const std::string& nickname);
     bool        isBotNickname(const std::string& nickname) const;
-    
+
     // メッセージルーティング
     void        routeMessage(Client* sender, const std::string& target, const std::string& message);
     void        routePrivateMessage(Client* sender, const std::string& botNick, const std::string& message);
     void        routeChannelMessage(Client* sender, const std::string& channel, const std::string& message);
-    
+
     // イベントハンドリング
     void        handleJoin(Client* client, const std::string& channel);
     void        handlePart(Client* client, const std::string& channel);
     void        handleQuit(Client* client, const std::string& reason);
-    
+
     // Bot初期化
     void        initializeBots();
     void        shutdownBots();
-    
+
     // 状態管理
     void        setEnabled(bool enabled);
     bool        isEnabled() const;
-    
+
     // デバッグ用
     void        listBots() const;
 };
