@@ -11,10 +11,19 @@ class Client;
 
 class DCCManager {
 private:
+    // GETリクエスト情報を保持する構造体
+    struct GetRequest {
+        Client* requester;
+        Client* sender;
+        std::string filename;
+        time_t timestamp;
+    };
+    
     Server*                                     _server;
     std::map<std::string, DCCTransfer*>        _transfers;         // 転送ID -> DCCTransfer
     std::map<int, DCCTransfer*>                _socketTransfers;   // ソケットFD -> DCCTransfer
     std::map<std::string, std::vector<std::string> > _pendingTransfers; // ニックネーム -> 転送ID
+    std::vector<GetRequest>                     _pendingGetRequests; // 保留中のGETリクエスト
     int                                         _nextPort;          // 次に使用するポート
     static const int                            MIN_DCC_PORT = 5000;
     static const int                            MAX_DCC_PORT = 5100;
@@ -30,6 +39,10 @@ public:
     bool            acceptTransfer(Client* client, const std::string& transferId);
     bool            rejectTransfer(Client* client, const std::string& transferId);
     void            cancelTransfer(const std::string& transferId);
+    
+    // GETリクエスト管理
+    void            addPendingGetRequest(Client* requester, Client* sender, const std::string& filename);
+    bool            checkAndAutoAcceptGetRequest(Client* sender, Client* receiver, const std::string& filename, const std::string& transferId);
     
     // 転送の処理
     void            processTransfers();

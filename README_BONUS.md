@@ -96,7 +96,9 @@ DCCファイル転送機能により、IRCクライアント間で直接ファ�
 
 ### 使用方法
 
-#### 1. ファイル送信
+#### シナリオ1: 送信者主導の転送（Push型）
+
+##### 1. ファイル送信
 
 ```
 DCC SEND <nickname> <filepath>
@@ -107,7 +109,7 @@ DCC SEND <nickname> <filepath>
 DCC SEND Alice ./dcc_transfers/test_file.txt
 ```
 
-#### 2. ファイル受信
+##### 2. ファイル受信
 
 送信リクエストを受け取ったら、以下のコマンドで承認:
 
@@ -133,7 +135,35 @@ DCC GET Alice test_file.txt
 DCC REJECT <transferId>
 ```
 
-**注意:** `DCC GET <nickname> <filename>` 形式を使用した場合、保留中の転送が存在しない場合は、指定したニックネームにファイルリクエストを送信します。
+**注意:** `DCC GET <nickname> <filename>` 形式を使用した場合、保留中の転送が存在しない場合は、指定したニックネームにファイルリクエストを送信します。相手がDCC SENDで応答した場合、転送は自動的に承認されます。
+
+#### シナリオ2: 受信者主導の転送（Pull型）
+
+##### 1. ファイルリクエスト
+
+受信者がファイルを要求:
+
+```
+DCC GET <nickname> <filename>
+```
+
+例:
+```
+# BobがAliceからtest_file.txtを要求
+DCC GET Alice test_file.txt
+```
+
+##### 2. 送信者の応答
+
+送信者はGETリクエストを受け取り、ファイルを送信:
+
+```
+DCC SEND <nickname> <filepath>
+```
+
+##### 3. 自動承認
+
+Pull型の転送では、リクエスト者がファイルを自動的に承認します。
 
 #### 3. 転送管理コマンド
 

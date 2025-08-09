@@ -186,6 +186,9 @@ void DCCGetCommand::execute() {
                                " :Creating DCC GET request to " + senderNick + 
                                " for file " + filename + "\r\n");
             
+            // GETリクエストを記録（自動承認用）
+            dccManager->addPendingGetRequest(_client, sender, filename);
+            
             // 送信者にプルリクエストを通知
             std::string reqMsg = ":" + _client->getPrefix() + " PRIVMSG " + senderNick + 
                                  " :\001DCC GET " + filename + "\001\r\n";
@@ -193,7 +196,7 @@ void DCCGetCommand::execute() {
             
             _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                                " :DCC GET request sent to " + senderNick + 
-                               ". Waiting for response.\r\n");
+                               ". Waiting for response. Transfer will be auto-accepted.\r\n");
             return;
         }
     }

@@ -20,6 +20,7 @@ DCCManager::~DCCManager() {
     _transfers.clear();
     _socketTransfers.clear();
     _pendingTransfers.clear();
+    _pendingGetRequests.clear();
 }
 
 std::string DCCManager::createSendTransfer(Client* sender, Client* receiver, 
@@ -310,6 +311,67 @@ std::string DCCManager::findPendingTransferBySenderAndFile(Client* sender, Clien
     return ""; // 見つからない場合は空文字列を返す
 }
 
+void DCCManager::addPendingGetRequest(Client* requester, Client* sender, const std::string& filename) {
+    // 既存の同じリクエストがあるか確認
+    for (std::vector<GetRequest>::iterator it = _pendingGetRequests.begin();
+         it != _pendingGetRequests.end(); ++it) {
+        if (it->requester == requester && it->sender == sender && it->filename == filename) {
+            // 既存のリクエストがある場合はタイムスタンプを更新
+            it->timestamp = time(NULL);
+            return;
+        }
+    }
+    
+    // 新しいGETリクエストを追加
+    GetRequest request;
+    request.requester = requester;
+    request.sender = sender;
+    request.filename = filename;
+    request.timestamp = time(NULL);
+    _pendingGetRequests.push_back(request);
+    
+    // 古いリクエストをクリーンアップ（60秒以上古いもの）
+    time_t now = time(NULL);
+    std::vector<GetRequest>::iterator it = _pendingGetRequests.begin();
+    while (it != _pendingGetRequests.end()) {
+        if (now - it->timestamp > 60) {
+            it = _pendingGetRequests.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+bool DCCManager::checkAndAutoAcceptGetRequest(Client* sender, Client* receiver, const std::string& filename, const std::string& transferId) {
+    // ファイル名からパスを除去
+    std::string targetFilename = filename;
+    size_t lastSlash = targetFilename.find_last_of("/\\");
+    if (lastSlash != std::string::npos) {
+        targetFilename = targetFilename.substr(lastSlash + 1);
+    }
+    
+    // 保留中のGETリクエストを検索
+    for (std::vector<GetRequest>::iterator it = _pendingGetRequests.begin();
+         it != _pendingGetRequests.end(); ++it) {
+        // リクエストが一致するか確認
+        if (it->requester == receiver && it->sender == sender) {
+            // ファイル名が一致または部分一致
+            if (it->filename == targetFilename ||
+                it->filename.find(targetFilename) != std::string::npos ||
+                targetFilename.find(it->filename) != std::string::npos) {
+                
+                // GETリクエストを削除
+                _pendingGetRequests.erase(it);
+                
+                // 自動的に転送を承認
+                return acceptTransfer(receiver, transferId);
+            }
+        }
+    }
+    
+    return false;
+}
+
 void DCCManager::addTransferSocket(int socket, DCCTransfer* transfer) {
     _socketTransfers[socket] = transfer;
 }
@@ -414,6 +476,14 @@ void DCCManager::notifySendRequest(DCCTransfer* transfer) {
        << " " << transfer->getId() << "\001\r\n";
     
     receiver->sendMessage(ss.str());
+    
+    // 保留中のGETリクエストがある場合は自動承認を試みる
+    if (checkAndAutoAcceptGetRequest(sender, receiver, transfer->getFilename(), transfer->getId())) {
+        std::stringstream autoMsg;
+        autoMsg << ":server NOTICE " << receiver->getNickname()
+                << " :Auto-accepting DCC transfer for requested file: " << transfer->getFilename() << "\r\n";
+        receiver->sendMessage(autoMsg.str());
+    }
 }
 
 void DCCManager::notifyTransferAccepted(DCCTransfer* transfer) {
