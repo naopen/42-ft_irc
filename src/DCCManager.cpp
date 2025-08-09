@@ -99,9 +99,9 @@ bool DCCManager::acceptTransfer(Client* client, const std::string& transferId) {
         addTransferSocket(receiverTransfer->getDataSocket(), receiverTransfer);
     }
     
-    // 両方の転送をアクティブに
-    senderTransfer->setStatus(DCC_ACTIVE);
+    // 受信側のみアクティブに（送信側はacceptConnection後に自動的にアクティブになる）
     receiverTransfer->setStatus(DCC_ACTIVE);
+    // senderTransfer->setStatus(DCC_ACTIVE); // これを削除！送信側はPENDINGのまま
     
     // 送信者に通知
     notifyTransferAccepted(senderTransfer);

@@ -2,6 +2,7 @@
 #include "../include/Command.hpp"
 #include "../include/bonus/BotManager.hpp"
 #include "../include/DCCManager.hpp"
+#include "../include/DCCTransfer.hpp"
 
 Server::Server(int port, const std::string& password)
     : _serverSocket(-1), _password(password), _port(port), _running(false), _commandFactory(NULL), _botManager(NULL), _dccManager(NULL)
@@ -133,22 +134,41 @@ void Server::run() {
                 continue;
             }
 
-            if (_pollfds[i].revents & POLLIN) {
+            if (_pollfds[i].revents & (POLLIN | POLLOUT)) {
                 if (_pollfds[i].fd == _serverSocket) {
                     // 新しい接続を処理
-                    handleNewConnection();
-                } else {
-                    // クライアントが存在するかチェック
-                    if (!getClientByFd(_pollfds[i].fd)) {
-                        std::cout << "\033[1;31m[WARNING] Skipping invalid client fd: " << _pollfds[i].fd << "\033[0m" << std::endl;
-                        // 無効なfdを_pollfdから削除
-                        removePollFd(_pollfds[i].fd);
-                        // インデックスを調整
-                        i--;
-                        continue;
+                    if (_pollfds[i].revents & POLLIN) {
+                        handleNewConnection();
                     }
+                } else if (getClientByFd(_pollfds[i].fd)) {
                     // クライアントからのデータを処理
-                    handleClientData(i);
+                    if (_pollfds[i].revents & POLLIN) {
+                        handleClientData(i);
+                    }
+                } else if (_dccManager) {
+                    // DCC転送ソケットのイベントを処理
+                    std::vector<DCCTransfer*> transfers = _dccManager->getActiveTransfers();
+                    for (size_t j = 0; j < transfers.size(); ++j) {
+                        DCCTransfer* transfer = transfers[j];
+                        
+                        // リスニングソケットでの接続受け入れ
+                        if (transfer->getListenSocket() == _pollfds[i].fd && (_pollfds[i].revents & POLLIN)) {
+                            std::cout << "[DCC] Incoming connection on listening socket" << std::endl;
+                            if (transfer->acceptConnection()) {
+                                std::cout << "[DCC] Connection accepted, transfer is now active" << std::endl;
+                                // データソケットをDCCManagerに登録
+                                if (transfer->getDataSocket() >= 0) {
+                                    _dccManager->addTransferSocket(transfer->getDataSocket(), transfer);
+                                }
+                            }
+                        }
+                        // データ転送の処理
+                        else if (transfer->getDataSocket() == _pollfds[i].fd) {
+                            if (_pollfds[i].revents & (POLLIN | POLLOUT)) {
+                                transfer->processTransfer();
+                            }
+                        }
+                    }
                 }
             }
 
@@ -156,18 +176,17 @@ void Server::run() {
             if (_pollfds[i].revents & (POLLHUP | POLLERR)) {
                 if (_pollfds[i].fd != _serverSocket) {
                     // クライアントが存在するかチェック
-                    if (!getClientByFd(_pollfds[i].fd)) {
-                        std::cout << "\033[1;31m[WARNING] Skipping invalid client fd: " << _pollfds[i].fd << "\033[0m" << std::endl;
-                        // 無効なfdを_pollfdから削除
-                        removePollFd(_pollfds[i].fd);
-                        // インデックスを調整
+                    if (getClientByFd(_pollfds[i].fd)) {
+                        // クライアントを削除
+                        removeClient(_pollfds[i].fd);
+                        // インデックスを調整（削除したので）
                         i--;
-                        continue;
+                    } else {
+                        // DCCソケットの切断を処理
+                        std::cout << "[DCC] Socket error/disconnect on fd: " << _pollfds[i].fd << std::endl;
+                        removePollFd(_pollfds[i].fd);
+                        i--;
                     }
-                    // クライアントを削除
-                    removeClient(_pollfds[i].fd);
-                    // インデックスを調整（削除したので）
-                    i--;
                 }
             }
         }
@@ -869,6 +888,32 @@ void Server::updatePollFds() {
         clientPollFd.events = POLLIN;
         clientPollFd.revents = 0;
         _pollfds.push_back(clientPollFd);
+    }
+    
+    // DCC転送ソケットを追加
+    if (_dccManager) {
+        std::vector<DCCTransfer*> transfers = _dccManager->getActiveTransfers();
+        for (size_t i = 0; i < transfers.size(); ++i) {
+            DCCTransfer* transfer = transfers[i];
+            
+            // リスニングソケットがある場合（送信側のPENDING状態）
+            if (transfer->getListenSocket() >= 0) {
+                struct pollfd dccListenFd;
+                dccListenFd.fd = transfer->getListenSocket();
+                dccListenFd.events = POLLIN;
+                dccListenFd.revents = 0;
+                _pollfds.push_back(dccListenFd);
+            }
+            
+            // データソケットがある場合（アクティブな転送）
+            if (transfer->getDataSocket() >= 0) {
+                struct pollfd dccDataFd;
+                dccDataFd.fd = transfer->getDataSocket();
+                dccDataFd.events = POLLIN | POLLOUT;
+                dccDataFd.revents = 0;
+                _pollfds.push_back(dccDataFd);
+            }
+        }
     }
 
     // FD の数が変わった場合のみログを出力
