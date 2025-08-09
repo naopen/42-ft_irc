@@ -73,7 +73,9 @@ void Bot::sendMessage(const std::string& target, const std::string& message) {
     if (!_active || !_server)
         return;
 
-    std::string formatted = ":" + _nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+    // irssiクライアント対応のため完全なプレフィックス形式を使用
+    std::string botPrefix = _nickname + "!" + _username + "@" + _server->getHostname();
+    std::string formatted = ":" + botPrefix + " PRIVMSG " + target + " :" + message;
     
     // ターゲットがチャンネルの場合
     if (target[0] == '#' || target[0] == '&') {
@@ -103,7 +105,9 @@ void Bot::sendPrivateMessage(Client* target, const std::string& message) {
     if (!target || !_active)
         return;
     
-    std::string formatted = ":" + _nickname + " PRIVMSG " + target->getNickname() + " :" + message + "\r\n";
+    // irssiクライアント対応のため完全なプレフィックス形式を使用
+    std::string botPrefix = _nickname + "!" + _username + "@" + _server->getHostname();
+    std::string formatted = ":" + botPrefix + " PRIVMSG " + target->getNickname() + " :" + message;
     target->sendMessage(formatted);
 }
 
@@ -136,7 +140,8 @@ void Bot::joinChannel(const std::string& channel) {
     if (ch) {
         _channels.push_back(channel);
         // チャンネルメンバーに参加通知を送信
-        std::string joinMsg = ":" + _nickname + " JOIN " + channel + "\r\n";
+        std::string botPrefix = _nickname + "!" + _username + "@" + _server->getHostname();
+        std::string joinMsg = ":" + botPrefix + " JOIN " + channel;
         std::vector<Client*> members = ch->getClients();
         for (std::vector<Client*>::iterator it = members.begin(); it != members.end(); ++it) {
             (*it)->sendMessage(joinMsg);
@@ -163,7 +168,8 @@ void Bot::partChannel(const std::string& channel) {
     // チャンネルメンバーに退出通知を送信
     Channel* ch = _server->getChannel(channel);
     if (ch) {
-        std::string partMsg = ":" + _nickname + " PART " + channel + " :Leaving\r\n";
+        std::string botPrefix = _nickname + "!" + _username + "@" + _server->getHostname();
+        std::string partMsg = ":" + botPrefix + " PART " + channel + " :Leaving";
         std::vector<Client*> members = ch->getClients();
         for (std::vector<Client*>::iterator it = members.begin(); it != members.end(); ++it) {
             (*it)->sendMessage(partMsg);
@@ -180,7 +186,9 @@ void Bot::sendNotice(const std::string& target, const std::string& message) {
     if (!_active || !_server)
         return;
     
-    std::string formatted = ":" + _nickname + " NOTICE " + target + " :" + message + "\r\n";
+    // irssiクライアント対応のため完全なプレフィックス形式を使用
+    std::string botPrefix = _nickname + "!" + _username + "@" + _server->getHostname();
+    std::string formatted = ":" + botPrefix + " NOTICE " + target + " :" + message;
     
     // ターゲットがチャンネルの場合
     if (target[0] == '#' || target[0] == '&') {
