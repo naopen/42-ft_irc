@@ -13,7 +13,8 @@ DCCTransfer::DCCTransfer(Client* sender, Client* receiver, const std::string& fi
                          unsigned long filesize, DCCTransferType type)
     : _sender(sender), _receiver(receiver), _filename(filename), _filesize(filesize),
       _bytesTransferred(0), _type(type), _status(DCC_PENDING), _listenSocket(-1),
-      _dataSocket(-1), _port(0), _sendFile(NULL), _recvFile(NULL), _buffer(NULL) {
+      _dataSocket(-1), _port(0), _sendFile(NULL), _recvFile(NULL), _buffer(NULL),
+      _lastFlushBytes(0) {
     
     _id = generateTransferId();
     _startTime = time(NULL);
@@ -208,12 +209,24 @@ bool DCCTransfer::receiveData() {
         _bytesTransferred += bytesReceived;
         updateLastActivity();
         
+        // 定期的なフラッシュ（64KB毎）または毎回フラッシュ
+        if ((_bytesTransferred - _lastFlushBytes) >= DCC_FLUSH_INTERVAL || 
+            _bytesTransferred % 32768 == 0) { // 32KB毎にもフラッシュ
+            _recvFile->flush();
+            _lastFlushBytes = _bytesTransferred;
+        } else {
+            // 小さなチャンクでも毎回フラッシュ（Linux環境での信頼性向上）
+            _recvFile->flush();
+        }
+        
         // 受信確認の送信（DCC プロトコル）
         uint32_t ack = htonl(_bytesTransferred);
         send(_dataSocket, &ack, sizeof(ack), MSG_NOSIGNAL);
         
         if (_bytesTransferred >= _filesize) {
             _status = DCC_COMPLETED;
+            // 転送完了時には確実にバッファをフラッシュ
+            _recvFile->flush();
         }
         return true;
     } else if (bytesReceived == 0) {
@@ -222,6 +235,10 @@ bool DCCTransfer::receiveData() {
             _status = DCC_COMPLETED;
         } else {
             _status = DCC_FAILED;
+        }
+        // 接続終了時にもバッファをフラッシュ
+        if (_recvFile) {
+            _recvFile->flush();
         }
         return false;
     } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -423,6 +440,8 @@ void DCCTransfer::closeSendFile() {
 
 void DCCTransfer::closeReceiveFile() {
     if (_recvFile) {
+        // ファイルクローズ前に確実にバッファをフラッシュ
+        _recvFile->flush();
         _recvFile->close();
         delete _recvFile;
         _recvFile = NULL;

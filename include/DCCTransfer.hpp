@@ -43,6 +43,8 @@ private:
     std::ofstream*      _recvFile;      // 受信用ファイルストリーム
     char*               _buffer;        // 転送バッファ
     static const size_t DCC_BUFFER_SIZE = 8192; // バッファサイズ
+    static const size_t DCC_FLUSH_INTERVAL = 65536; // フラッシュ間隔（64KB）
+    unsigned long       _lastFlushBytes; // 最後にフラッシュした時点のバイト数
 
 public:
     DCCTransfer(Client* sender, Client* receiver, const std::string& filename, 
