@@ -42,6 +42,7 @@ public:
     std::vector<DCCTransfer*> getClientTransfers(Client* client);
     std::vector<DCCTransfer*> getActiveTransfers();
     std::vector<DCCTransfer*> getPendingTransfers();
+    std::string    findPendingTransferBySenderAndFile(Client* sender, Client* receiver, const std::string& filename);
     
     // ソケット管理
     void            addTransferSocket(int socket, DCCTransfer* transfer);

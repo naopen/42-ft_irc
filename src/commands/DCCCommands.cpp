@@ -148,18 +148,11 @@ void DCCGetCommand::execute() {
         return;
     }
     
-    // パラメータチェック: DCC GET <transferId> または DCC ACCEPT <transferId>
-    // 注: Command.cppでサブコマンド(GET/ACCEPT)は既に除外されているので、_paramsには[transferId]のみ
+    // パラメータチェック: DCC GET <transferId> または DCC GET <nickname> <filename>
+    // 注: Command.cppでサブコマンド(GET/ACCEPT)は既に除外されているので、_paramsには[transferId]または[nickname, filename]のみ
     if (_params.size() < 1) {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
-                           " :Usage: DCC GET <transferId> or DCC ACCEPT <transferId>\r\n");
-        return;
-    }
-    
-    std::string transferId;
-    if (!parseTransferInfo(_params[0], transferId)) {
-        _client->sendMessage(":server NOTICE " + _client->getNickname() + 
-                           " :Invalid transfer ID\r\n");
+                           " :Usage: DCC GET <transferId> or DCC GET <nickname> <filename>\r\n");
         return;
     }
     
@@ -168,6 +161,49 @@ void DCCGetCommand::execute() {
         _client->sendMessage(":server NOTICE " + _client->getNickname() + 
                            " :DCC not available on this server\r\n");
         return;
+    }
+    
+    std::string transferId;
+    
+    // 2つのパラメータがある場合: nickname と filename
+    if (_params.size() >= 2) {
+        std::string senderNick = _params[0];
+        std::string filename = _params[1];
+        
+        // 送信者の確認
+        Client* sender = _server->getClientByNickname(senderNick);
+        if (!sender) {
+            _client->sendNumericReply(401, senderNick + " :No such nick/channel");
+            return;
+        }
+        
+        // そのニックネームからの保留中の転送を検索
+        transferId = dccManager->findPendingTransferBySenderAndFile(sender, _client, filename);
+        if (transferId.empty()) {
+            // 保留中の転送がない場合、プル型のリクエストを作成
+            // これは受信者が送信者にファイルを要求するケース
+            _client->sendMessage(":server NOTICE " + _client->getNickname() + 
+                               " :Creating DCC GET request to " + senderNick + 
+                               " for file " + filename + "\r\n");
+            
+            // 送信者にプルリクエストを通知
+            std::string reqMsg = ":" + _client->getPrefix() + " PRIVMSG " + senderNick + 
+                                 " :\001DCC GET " + filename + "\001\r\n";
+            sender->sendMessage(reqMsg);
+            
+            _client->sendMessage(":server NOTICE " + _client->getNickname() + 
+                               " :DCC GET request sent to " + senderNick + 
+                               ". Waiting for response.\r\n");
+            return;
+        }
+    }
+    // 1つのパラメータのみの場合: transferId
+    else {
+        if (!parseTransferInfo(_params[0], transferId)) {
+            _client->sendMessage(":server NOTICE " + _client->getNickname() + 
+                               " :Invalid transfer ID\r\n");
+            return;
+        }
     }
     
     if (dccManager->acceptTransfer(_client, transferId)) {

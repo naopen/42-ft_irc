@@ -116,11 +116,24 @@ DCC GET <transferId>
 DCC ACCEPT <transferId>
 ```
 
-または拒否:
+または、送信者とファイル名を指定して受信:
+
+```
+DCC GET <nickname> <filename>
+```
+
+例:
+```
+DCC GET Alice test_file.txt
+```
+
+リクエストを拒否する場合:
 
 ```
 DCC REJECT <transferId>
 ```
+
+**注意:** `DCC GET <nickname> <filename>` 形式を使用した場合、保留中の転送が存在しない場合は、指定したニックネームにファイルリクエストを送信します。
 
 #### 3. 転送管理コマンド
 

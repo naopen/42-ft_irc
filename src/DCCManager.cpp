@@ -275,6 +275,41 @@ std::vector<DCCTransfer*> DCCManager::getPendingTransfers() {
     return pendingTransfers;
 }
 
+std::string DCCManager::findPendingTransferBySenderAndFile(Client* sender, Client* receiver, const std::string& filename) {
+    // ファイル名から拡張子を除いた部分も考慮（パスが含まれる場合の処理）
+    std::string targetFilename = filename;
+    size_t lastSlash = targetFilename.find_last_of("/\\");
+    if (lastSlash != std::string::npos) {
+        targetFilename = targetFilename.substr(lastSlash + 1);
+    }
+    
+    // 保留中の転送を検索
+    for (std::map<std::string, DCCTransfer*>::iterator it = _transfers.begin();
+         it != _transfers.end(); ++it) {
+        DCCTransfer* transfer = it->second;
+        
+        // 条件をチェック：
+        // 1. 送信者が一致
+        // 2. 受信者が一致
+        // 3. ステータスがPENDING
+        // 4. ファイル名が一致（部分一致も許可）
+        if (transfer->getSender() == sender &&
+            transfer->getReceiver() == receiver &&
+            transfer->getStatus() == DCC_PENDING) {
+            
+            // ファイル名の比較（完全一致または部分一致）
+            std::string transferFilename = transfer->getFilename();
+            if (transferFilename == targetFilename ||
+                transferFilename.find(targetFilename) != std::string::npos ||
+                targetFilename.find(transferFilename) != std::string::npos) {
+                return it->first; // 転送IDを返す
+            }
+        }
+    }
+    
+    return ""; // 見つからない場合は空文字列を返す
+}
+
 void DCCManager::addTransferSocket(int socket, DCCTransfer* transfer) {
     _socketTransfers[socket] = transfer;
 }
